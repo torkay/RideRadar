@@ -5,7 +5,7 @@ Currently in development
 ## Value a deal? Every car sale, in one spot.
 
 ### Dev log:
-> Manheim, Pickles completed. Simply upon requesting a vehicle brand, returned to you will be a list of vehicle information including the title, the link to sale, and image.
+> Manheim, Pickles completed. Simply upon requesting a vehicle brand, returned to you will be a list of vehicles each including information containing the title, the link to sale, and image.
 
 > Interact with the service via discord, request information via a discord bot programmed with Discord.py, and recieve extensive sale returns via discord webhook's.
 
