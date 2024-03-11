@@ -2,7 +2,7 @@ import discord
 from discord import Webhook
 import aiohttp
 import json
-from src_scraper import retrieve_data
+from src_scraper import request, search_by_brand
 import asyncio
 from colorama import init, Fore, Style
 import time
@@ -15,7 +15,7 @@ DATA_FILE = 'vehicles_data.json'
 
 async def retrieve_and_send(url, previous_data, vehicle_make):
     # Retrieve data for vehicles
-    current_data = await retrieve_data(vehicle_make)
+    current_data = await search_by_brand(vehicle_make)
 
     # Save the current data to the file
     with open(DATA_FILE, 'w') as file:
@@ -70,4 +70,4 @@ async def run(vehicle_make):
     return(result)
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    asyncio.run(run("Porsche"))
