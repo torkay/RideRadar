@@ -51,14 +51,18 @@ async def search_by_brand(brand, external=False):
             EC.presence_of_element_located((By.TAG_NAME, "label"))
         )
 
-        # Select desired vehicle(s)
-        desired_make = driver.find_elements(By.TAG_NAME, "label")
-        for items in desired_make:
+        try:
+            # Select desired vehicle(s)
+            desired_make = driver.find_elements(By.TAG_NAME, "label")
+            for items in desired_make:
 
-            label = WebDriverWait(driver, 2).until(
-            EC.presence_of_element_located((By.XPATH, f"//label[text()='{desired_vehicle_make}']"))
-        )
-        label.click()
+                label = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, f"//label[text()='{desired_vehicle_make}']"))
+            )
+            label.click()
+        except Exception as e:
+            print(f"No results of desired brand yielded! Manheim: {e}")
+            pass
 
         if external:
             pass # Page state acquired
