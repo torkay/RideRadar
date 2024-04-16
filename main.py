@@ -20,7 +20,7 @@ def console(colour, text: str):
         reset_code = colors['reset']
         print(color_code + text + reset_code)
     else:
-        logging.error("Invalid color!")
+        logging.error("Error occured during coloring console: Invalid Color")
 
 # Example usage:
 #print_colored_text('red', 'This text is red.')
