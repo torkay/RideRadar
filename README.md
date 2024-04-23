@@ -1,8 +1,28 @@
 # RideRadar
-### Used car sales service that searches the web for you 🚗
-Currently in development
+### Let us do the searching 🔎; Comparitive car buy and sell.
 
-## Value a deal? Every car sale, in one spot.
+RideRadar expands your options by comparing the entire market, providing listings from every popular car-market site in Australia.
+Get the most from your sold car and quickly by comparing offers across every car sales platform instantaneously after posting.
+
+## Features
+### Buy
+- Manheim
+- Pickles
+- Carsales
+- Autotrader
+- Gumtree
+- FB Marketplace
+### Sell
+- Carsales
+- Autotrader
+- Gumtree
+- FB Marketplace
+
+
+## Developmental outline of RideRadar.
+![Showcase Image](mindmap.md)
+
+## Value a deal? 🏷️ Every car, one click away.
 
 ### Dev log:
 > Manheim, Pickles completed. Simply upon requesting a vehicle brand, returned to you will be a list of vehicles each including information containing the title, the link to sale, and image.
