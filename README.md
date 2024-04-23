@@ -4,6 +4,9 @@
 RideRadar expands your options by comparing the entire market, providing listings from every popular car-market site in Australia.
 Get the most from your sold car and quickly by comparing offers across every car sales platform instantaneously after posting.
 
+## Developmental outline of RideRadar.
+![Showcase Image](mindmap.md)
+
 ## Features
 ### Buy
 - Manheim
@@ -17,10 +20,6 @@ Get the most from your sold car and quickly by comparing offers across every car
 - Autotrader
 - Gumtree
 - FB Marketplace
-
-
-## Developmental outline of RideRadar.
-![Showcase Image](mindmap.md)
 
 ## Value a deal? 🏷️ Every car, one click away.
 
