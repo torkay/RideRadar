@@ -4,11 +4,12 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from utils import console
 import logging
-from colorama import init, Fore, Style
+import platform
 import re
 
-init()
+#init()
 
 async def search_by_brand(brand, external=False):
 
@@ -19,8 +20,17 @@ async def search_by_brand(brand, external=False):
         chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
         chrome_options.add_argument("--log-level=3")  # Suppress logging
 
-        # Path to chromedriver executable
-        chromedriver_path = "chromedriver.exe"
+
+        os = platform.system()
+        # Set the chromedriver_path based on the operating system
+        if os == "Windows":
+            chromedriver_path = "chromedriver.exe"
+            console("green", "Windows platform detected")
+        elif os == "Darwin":  # "Darwin" is the platform name for macOS
+            console("green", "Darwim platform detected")
+            chromedriver_path = "/Users/torrinkay/Documents/RideRadar/chromedriver-arm64.app"
+        else:
+            logging.error("OS not identifyed: Check scr_scraper chromedriver_path decliration")
 
         # Initialize Chrome WebDriver with the configured options
         service = Service(executable_path=chromedriver_path)
@@ -38,7 +48,7 @@ async def search_by_brand(brand, external=False):
 
         # Print net car auctions
         net_result = driver.find_element(By.ID, "js-searchTitleHeading").text
-        # print(f"{Fore.BLUE}{net_result}")
+        # console("blue", f"{net_result}")
 
         # Open vehicle menu
         WebDriverWait(driver, 5).until(
@@ -61,7 +71,7 @@ async def search_by_brand(brand, external=False):
             )
             label.click()
         except Exception as e:
-            print(f"No results of desired brand yielded! Manheim: {e}")
+            console("red", f"No results of desired brand yielded! Manheim: {e}")
             pass
 
         if external:
@@ -78,13 +88,16 @@ async def search_by_brand(brand, external=False):
             for card in vehicle_cards:
                 # Main details
                 vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
+                print(vehicle_name)
                 vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
-                vehicle_img = card.find_element(By.XPATH, ".//a/img").get_attribute("src")
+                print(vehicle_link)
+                vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
+                print(vehicle_img)
 
                 returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
 
             driver.quit()
-            # print(f"{Fore.BLUE}Processing data...{Style.RESET_ALL}")
+            console("yellow", "Processing data...")
             return(returned_vehicle_list)
 
     async def search_pickles(desired_vehicle_make):
@@ -130,11 +143,11 @@ async def search_by_brand(brand, external=False):
         # print(f"Processing data...{Style.RESET_ALL}")
         return(returned_vehicle_list)
     
-    print(f"{Fore.BLUE}\nConnecting to vendors...{Fore.YELLOW}")
+    console("blue", "\nConnecting to vendors...")
     manheim_yield = await search_manheim(brand)
     pickles_yield = await search_pickles(brand)
     vendor_yield = manheim_yield + pickles_yield
-    print("LS")
+    console("yellow", "LS")
     return(vendor_yield)
 
 async def search_by_model(brand, model):
@@ -150,5 +163,6 @@ async def request(function_name, *args, **kwargs):
     else:
         raise AttributeError(f"Function {function_name} does not exist.")
 
-
-
+if __name__ == "__main__":
+    console("red", "Unable to run src_scraper from raw")
+    pass
