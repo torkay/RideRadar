@@ -2,7 +2,7 @@ import discord
 from discord import Webhook
 import aiohttp
 import json
-from src_scraper import search_by_brand, request
+from src_scraper import search_by, request
 import asyncio
 from colorama import init, Fore, Style
 import time
@@ -15,7 +15,8 @@ DATA_FILE = 'vehicles_data.json'
 
 async def retrieve_and_send(url, previous_data, vehicle_make):
     # Retrieve data for vehicles
-    current_data = await search_by_brand(vehicle_make)
+    search = search_by.vehicle_brand(vehicle_make)
+    current_data = await search.search_by_brand()
 
     # Save the current data to the file
     with open(DATA_FILE, 'w') as file:
@@ -32,7 +33,7 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
                 embed = discord.Embed(
                     title=vehicle["title"],
                     url=vehicle["link"],
-                    description=f"Newly added vehicle to **{vehicle["vendor"]}!**",
+                    description=f"Newly added vehicle to **{vehicle['vendor']}!**",
                     color=0x00ff00
                 )
                 if vehicle["vendor"] == "Manheim":
@@ -44,11 +45,11 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
 
                 await webhook.send(embed=embed, username="Captain Hook")
         print(f"Embeds assumed successfully sent.{Style.RESET_ALL}")
-        return(True)
+        return True
     else:
         print(f"{Fore.GREEN}\nNo new data found.")
         print(f"No embeds sent.{Style.RESET_ALL}")
-        return(False)
+        return False
     
 
 async def run(vehicle_make):
@@ -67,7 +68,8 @@ async def run(vehicle_make):
         previous_data = []
 
     result = await retrieve_and_send(url, previous_data, vehicle_make)
-    return(result)
+    return result
+
 
 if __name__ == "__main__":
     asyncio.run(run("Porsche"))
