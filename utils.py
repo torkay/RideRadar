@@ -30,6 +30,13 @@ class write:
         else:
             logging.error("Error occured during coloring console: Invalid Color")
 
+    def line(space=None):
+        seperator = "================================================================================================"
+        if space == None:
+            write.console("white", seperator)
+        else:
+            write.console("white", f"\n{seperator}")
+
 class create:
     @staticmethod
     def create_webdriver(service, chrome_options):

@@ -7,6 +7,7 @@ import asyncio
 from colorama import init, Fore, Style
 import time
 from vendor_storage import manheim, pickles
+from utils import *
 
 init()
 
@@ -26,7 +27,7 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
     new_data = [vehicle for vehicle in current_data if vehicle not in previous_data]
 
     if new_data:
-        print(f"{Fore.GREEN}\nWebhooking embeds for new data...")
+        write.console("green", "Webhooking embeds for new data...")
         for vehicle in new_data:
             async with aiohttp.ClientSession() as session:
                 webhook = Webhook.from_url(url, session=session)

@@ -1,3 +1,4 @@
 from vendor_storage import manheim, pickles
+from utils import *
 
-print(manheim[0]["Logo"])
+write.console("blue", f"Searching pickles for TEST")

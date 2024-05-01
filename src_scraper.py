@@ -20,7 +20,6 @@ class search_by:
         def __init__(self, vehicle_make):
             # Set the vehicle make
             self.vehicle_make = vehicle_make
-            print(vehicle_make)
             
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
@@ -40,41 +39,26 @@ class search_by:
                 logging.error("OS not identified: Check src_scraper chromedriver_path declaration")
 
         async def search_manheim(self):
+
+            vehicle_make = self.vehicle_make
+            write.console("cyan", f"\nSearching manheim for {vehicle_make}...")
+
             # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
-            driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
 
-            driver.get("https://manheim.com.au/damaged-vehicles/search?")
+            write.line()
+            driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
+            write.line(1)
+
+            driver.get(f"https://manheim.com.au/damaged-vehicles/search?refineName=ManufacturerCode&ManufacturerCode={vehicle_make.upper()}&ManufacturerCodeDescription={vehicle_make.capitalize()}")
 
             # Suppress logging
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
-            # Wait for content (Net car auctions)
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.ID, "js-searchTitleHeading"))
-            )
-
-            # Print net car auctions
-            net_result = driver.find_element(By.ID, "js-searchTitleHeading").text
-
-            # Open vehicle menu
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.ID, "ManufacturerCode"))
-            )
-            self.vehicle_make = driver.find_element(By.ID, "ManufacturerCode")
-            self.vehicle_make.click()
             # Wait for contents
             WebDriverWait(driver, 2).until(
                 EC.presence_of_element_located((By.TAG_NAME, "label"))
             )
-
-            # Select desired vehicle(s)
-            desired_make = driver.find_elements(By.TAG_NAME, "label")
-            for items in desired_make:
-                label = WebDriverWait(driver, 4).until(
-                    EC.presence_of_element_located((By.XPATH, f"//label[text()='{self.vehicle_make}']"))
-                )
-                label.click()
 
             returned_vehicle_list = []
 
@@ -86,31 +70,41 @@ class search_by:
             for card in vehicle_cards:
                 # Main details
                 vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
-                print(vehicle_name)
+                # print(vehicle_name)
                 vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
-                print(vehicle_link)
+                # print(vehicle_link)
                 vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
-                print(vehicle_img)
+                # print(vehicle_img)
 
                 returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
 
             driver.quit()
-            write.console("yellow", "Processing manheim data...")
+            write.console("yellow", "\nProcessing manheim data...")
             return returned_vehicle_list
 
 
 
         async def search_pickles(self):
+
+            vehicle_make = self.vehicle_make
+            write.console("cyan", f"\nSearching pickles for {vehicle_make}")
+
             # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
+
+            write.line()
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
+            write.line(1)
 
-            driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.Make.{self.vehicle_make}.)")
+            driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.Make.{vehicle_make}.)")
 
-            WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//div[@ng-repeat='resultItem in searchResults']//a"))
-                )
-
+            try:
+                WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.XPATH, "//div[@ng-repeat='resultItem in searchResults']//a"))
+                    )
+            except Exception:
+                raise NoSearchResultsException()
+            
             # Find all cards
             vehicle_cards = driver.find_elements(By.XPATH, "//div[@ng-repeat='resultItem in searchResults']")
 
@@ -131,20 +125,30 @@ class search_by:
                 returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
 
             # print(f"Processing data...{Style.RESET_ALL}")
+            write.console("yellow", "\nProcessing pickles data...")
             return returned_vehicle_list
 
         async def search_by_brand(self):
+            vehicle_make = self.vehicle_make
+
             try:
                 manheim_task = asyncio.create_task(self.search_manheim())
-                pickles_task = asyncio.create_task(self.search_pickles())
-
-                manheim_result = await manheim_task
-                pickles_result = await pickles_task
-
-                return manheim_result + pickles_result
             except NoSearchResultsException:
-                write.console("red", f"No search results on Manheim for {self.vehicle_make}")
+                write.console("red", f"No search results on Manheim for {vehicle_make}")
                 return await self.search_pickles()
+            
+            try:
+                pickles_task = asyncio.create_task(self.search_pickles())
+            except NoSearchResultsException:
+                write.console("red", f"No search results on Pickles for {vehicle_make}")
+                pass
+
+            manheim_result = await manheim_task
+            pickles_result = await pickles_task
+
+            return manheim_result + pickles_result
+            
+                
 
 
     async def vehicle_model(brand, model):
