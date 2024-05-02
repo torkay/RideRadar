@@ -5,6 +5,7 @@ import shutil
 import requests
 import zipfile
 from bs4 import BeautifulSoup
+import platform
 
 from selenium import webdriver
 from selenium.common.exceptions import SessionNotCreatedException
@@ -56,6 +57,22 @@ class update_chromedriver:
         self.url = url
     
     def find_installation(self):
+
+        # Determine operating system for driver installation type
+        os = platform.system()
+
+        os_chromedrivers = {
+            'Windows': 'win64',
+            'Darwin': 'mac-arm64',
+            'Linux': 'linux64',
+        }
+
+        if os in os_chromedrivers:
+            self.driver_path = os_chromedrivers[os]
+
+        else:
+            write.console("Red", "Error: Operating system invalid... Refer to utils.py for more debug")
+
         # Send HTTP request to the URL
         response = requests.get(self.url)
         if response.status_code != 200:
@@ -82,7 +99,7 @@ class update_chromedriver:
                 th_elements = tr.find_all('th')
 
                 # Check if the second <th> element contains a <code> element with text "win64"
-                if len(th_elements) >= 2 and th_elements[1].find('code') and th_elements[1].find('code').text.strip() == "win64" and th_elements[0].find('code').text.strip() == "chromedriver":
+                if len(th_elements) >= 2 and th_elements[1].find('code') and th_elements[1].find('code').text.strip() == str(self.os_chromedrivers) and th_elements[0].find('code').text.strip() == "chromedriver":
                     #write.console("red", f"code yielded: {th_elements[1].find('code').text.strip()}")
                     
                     # Find the common ancestor of the <th> and <td> elements

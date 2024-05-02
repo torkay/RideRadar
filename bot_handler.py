@@ -52,34 +52,15 @@ async def search_command(interaction: discord.Interaction, vehicle: str):
     guild=discord.Object(id="1013725487476002897")
 )
 async def calculate_command(interaction: discord.Interaction, amount: float):
-    try:
-        # Send a message asking for the auction house choice
-        message = await interaction.response.send_message(content="Please select an auction house for the calculation: Manheim or Pickles")
+    # Process the user's response
+    total1 = calculate_manheim(amount)
+    total2 = calculate_pickles(amount)
+    response = f"""Total amount sum is:
+`Manheim` ${total1}
+`Pickles` ${total2}"""
 
-        # Define the check function for wait_for
-        def check(m):
-            return m.author == interaction.user and m.channel == interaction.channel
-
-        # Wait for the user's response
-        response_msg = await client.wait_for('message', timeout=60.0, check=check)
-
-        # Process the user's response
-        if response_msg.content.lower() == 'manheim':
-            total = calculate_manheim(amount)
-            response = f"Total amount for Manheim: ${total}"
-        elif response_msg.content.lower() == 'pickles':
-            total = calculate_pickles(amount)
-            response = f"Total amount for Pickles: ${total}"
-        else:
-            response = "Invalid choice."
-
-        # Send the response to the original interaction
-        await interaction.followup.send(response)
-
-    except asyncio.TimeoutError:
-        await interaction.followup.send("You took too long to respond.")
-    except Exception as e:
-        await interaction.followup.send(f"An error occurred: {e}")
+    # Send the response to the original interaction
+    await interaction.response.send_message(response)
 
 
 
@@ -106,4 +87,4 @@ async def on_ready():
     print("Ready!")
 
 # Run the bot
-client.run('MTIxNTk4MjM2MDk5OTM2Mjc0Mg.GUoHa9.s3y5gx8OJ-vfApUe2S5FmIVvO0q06o9ymCdFOc')
+client.run('')

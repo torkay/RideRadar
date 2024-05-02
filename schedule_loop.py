@@ -7,7 +7,16 @@ def set_cmd_title(title):
     os.system(f"title {title}")
 
 async def run_handler():
-    await webhook_handler.run()
+    # Main
+    await webhook_handler.run("Porsche")
+
+    # Edge case
+    await webhook_handler.run("Ferrari")
+    await webhook_handler.run("Aston Martin")
+    await webhook_handler.run("Maserati")
+    await webhook_handler.run("Lamborghini")
+    await webhook_handler.run("Lotus")
+    await webhook_handler.run("Mclaren")
     
 async def main():
     
@@ -15,7 +24,7 @@ async def main():
     while True:
         await run_handler()
         print("Awaiting schedule...")
-        await asyncio.sleep((60))  # Check every hour
+        await asyncio.sleep(((60)*60)*3)  # Check three hour
         current_time = time.localtime()
         formatted_time = time.strftime("%I:%M%p %m/%d/%y", current_time)
         print(f"Initiating search on {formatted_time}")

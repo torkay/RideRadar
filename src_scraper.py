@@ -35,6 +35,9 @@ class search_by:
             elif os == "Darwin":  # "Darwin" is the platform name for macOS
                 write.console("green", "Darwin platform detected")
                 self.chromedriver_path = "/Users/torrinkay/Documents/RideRadar/chromedriver-arm64.app"
+            elif os == "Linux":
+                write.console("green", "Linux platform detected")
+                self.chromedriver_path = "chromedriver"
             else:
                 logging.error("OS not identified: Check src_scraper chromedriver_path declaration")
 
@@ -63,23 +66,28 @@ class search_by:
             returned_vehicle_list = []
 
             # Save title of each vehicle
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "vehicle-card"))
-            )
-            vehicle_cards = driver.find_elements(By.CLASS_NAME, "vehicle-card")
-            for card in vehicle_cards:
-                # Main details
-                vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
-                # print(vehicle_name)
-                vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
-                # print(vehicle_link)
-                vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
-                # print(vehicle_img)
+            try:
+                WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, "vehicle-card"))
+                )
+                vehicle_cards = driver.find_elements(By.CLASS_NAME, "vehicle-card")
+                for card in vehicle_cards:
+                    # Main details
+                    vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
+                    # print(vehicle_name)
+                    vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
+                    # print(vehicle_link)
+                    vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
+                    # print(vehicle_img)
 
-                returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
+                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
+                    write.console("yellow", "\nProcessing manheim data...")
+            except Exception:
+                write.console("red", f"\nNo results for {vehicle_make} on manheim...")
+                pass
 
             driver.quit()
-            write.console("yellow", "\nProcessing manheim data...")
+    
             return returned_vehicle_list
 
 
@@ -98,34 +106,38 @@ class search_by:
 
             driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.Make.{vehicle_make}.)")
 
+            returned_vehicle_list = []
+
             try:
                 WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.XPATH, "//div[@ng-repeat='resultItem in searchResults']//a"))
                     )
+                
+                # Find all cards
+                vehicle_cards = driver.find_elements(By.XPATH, "//div[@ng-repeat='resultItem in searchResults']")
+
+                # Iterate over each card
+                for card in vehicle_cards:
+                    # Find the first direct child <a> tag within the card
+                    vehicle_link = card.find_element(By.XPATH, ".//a[not(ancestor::a)]").get_attribute("href")
+                    # Find the title text within the div with class "title pb-0 text-truncate-2l"
+                    vehicle_name = card.find_element(By.XPATH, ".//div[@class='title pb-0 text-truncate-2l']//a").text
+                    # Find the image URL from the "lazy-load-bg" attribute
+                    style_attribute = card.find_element(By.XPATH, ".//div[@ng-repeat='imageName in resultItem.Thumbnails track by $index']").get_attribute("style")
+                    img_extraction_sequence = r'background-image:\s*url\("([^"]+)"\)' # Define the regex pattern to match the background image URL
+                    img_content = re.findall(img_extraction_sequence, style_attribute)
+                    image_url = img_content[0]
+                    # Append the data to the list if the link is not already present
+                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
+
+                # print(f"Processing data...{Style.RESET_ALL}")
+                write.console("yellow", "\nProcessing pickles data...")
+
             except Exception:
-                raise NoSearchResultsException()
-            
-            # Find all cards
-            vehicle_cards = driver.find_elements(By.XPATH, "//div[@ng-repeat='resultItem in searchResults']")
+                write.console("red", f"\nNo results for {vehicle_make} on pickles...")
+                pass
 
-            returned_vehicle_list = []
-
-            # Iterate over each card
-            for card in vehicle_cards:
-                # Find the first direct child <a> tag within the card
-                vehicle_link = card.find_element(By.XPATH, ".//a[not(ancestor::a)]").get_attribute("href")
-                # Find the title text within the div with class "title pb-0 text-truncate-2l"
-                vehicle_name = card.find_element(By.XPATH, ".//div[@class='title pb-0 text-truncate-2l']//a").text
-                # Find the image URL from the "lazy-load-bg" attribute
-                style_attribute = card.find_element(By.XPATH, ".//div[@ng-repeat='imageName in resultItem.Thumbnails track by $index']").get_attribute("style")
-                img_extraction_sequence = r'background-image:\s*url\("([^"]+)"\)' # Define the regex pattern to match the background image URL
-                img_content = re.findall(img_extraction_sequence, style_attribute)
-                image_url = img_content[0]
-                # Append the data to the list if the link is not already present
-                returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
-
-            # print(f"Processing data...{Style.RESET_ALL}")
-            write.console("yellow", "\nProcessing pickles data...")
+            driver.quit()
             return returned_vehicle_list
 
         async def search_by_brand(self):
