@@ -16,8 +16,14 @@ DATA_FILE = 'vehicles_data.json'
 
 async def retrieve_and_send(url, previous_data, vehicle_make):
     # Retrieve data for vehicles
-    search = search_by.vehicle_brand(vehicle_make)
-    current_data = await search.search_by_brand()
+    if ' ' in vehicle_make:
+        # Assume it's a specific search query
+        search = search_by.specific(vehicle_make)
+        current_data = await search.search_by_specific()  # Call the correct method here
+    else:
+        # Assume it's a search by brand
+        search = search_by.vehicle_brand(vehicle_make)
+        current_data = await search.search_by_brand()  # Call the correct method here
 
     # Save the current data to the file
     with open(DATA_FILE, 'w') as file:

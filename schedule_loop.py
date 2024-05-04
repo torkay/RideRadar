@@ -1,4 +1,5 @@
 import webhook_handler
+import configparser
 import asyncio
 import time
 import os
@@ -6,17 +7,16 @@ import os
 def set_cmd_title(title):
     os.system(f"title {title}")
 
-async def run_handler():
-    # Main
-    await webhook_handler.run("Porsche")
+async def process_vehicles(file_path):
+    with open(file_path, 'r') as file:
+        for line in file:
+            vehicle_make = line.strip()  # Remove leading/trailing whitespaces and newlines
+            await webhook_handler.run(vehicle_make)
 
-    # Edge case
-    await webhook_handler.run("Ferrari")
-    await webhook_handler.run("Aston Martin")
-    await webhook_handler.run("Maserati")
-    await webhook_handler.run("Lamborghini")
-    await webhook_handler.run("Lotus")
-    await webhook_handler.run("Mclaren")
+async def run_handler():
+    file_path = 'vehicles.txt'
+    os.system(f"title RideRadar: Scheduler (DO NOT CLOSE)")
+    await process_vehicles(file_path)
     
 async def main():
     
