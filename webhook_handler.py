@@ -24,10 +24,14 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
         # Assume it's a search by brand
         search = search_by.vehicle_brand(vehicle_make)
         current_data = await search.search_by_brand()  # Call the correct method here
+<<<<<<< HEAD
 
-    # Save the current data to the file
-    with open(DATA_FILE, 'w') as file:
-        json.dump(current_data, file)
+    # Save the current data to the file with indentation and separators
+    with open(DATA_FILE, 'a') as file:
+        json.dump(current_data, file, indent=4, separators=(',', ': '))
+=======
+>>>>>>> 089a9d12822a0097568ece901e3dd1dc5d211036
+
 
     # Compare current data with previous data
     new_data = [vehicle for vehicle in current_data if vehicle not in previous_data]
