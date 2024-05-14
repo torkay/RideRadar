@@ -27,19 +27,9 @@ class search_by:
             self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
             self.chrome_options.add_argument("--log-level=3")  # Suppress logging
 
-            os = platform.system()
-            # Set the chromedriver_path based on the operating system
-            if os == "Windows":
-                self.chromedriver_path = "chromedriver.exe"
-                write.console("green", "Windows platform detected")
-            elif os == "Darwin":  # "Darwin" is the platform name for macOS
-                write.console("green", "Darwin platform detected")
-                self.chromedriver_path = "/Users/torrinkay/Documents/RideRadar/chromedriver-arm64.app"
-            elif os == "Linux":
-                write.console("green", "Linux platform detected")
-                self.chromedriver_path = "chromedriver"
-            else:
-                logging.error("OS not identified: Check src_scraper chromedriver_path declaration")
+       
+            self.chromedriver_path = None # Pass as None-Type, arg will be determined via utils, no longer here
+
 
         async def search_manheim(self):
 
@@ -174,19 +164,7 @@ class search_by:
             self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
             self.chrome_options.add_argument("--log-level=3")  # Suppress logging
 
-            os = platform.system()
-            # Set the chromedriver_path based on the operating system
-            if os == "Windows":
-                self.chromedriver_path = "chromedriver.exe"
-                write.console("green", "Windows platform detected")
-            elif os == "Darwin":  # "Darwin" is the platform name for macOS
-                write.console("green", "Darwin platform detected")
-                self.chromedriver_path = "/Users/torrinkay/Documents/RideRadar/chromedriver-arm64.app"
-            elif os == "Linux":
-                write.console("green", "Linux platform detected")
-                self.chromedriver_path = "chromedriver"
-            else:
-                logging.error("OS not identified: Check src_scraper chromedriver_path declaration")
+            self.chromedriver_path = None # Pass as None-Type, arg will be determined via utils, no longer here
 
 
         async def search_manheim(self):

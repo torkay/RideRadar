@@ -1,8 +1,4 @@
 Porsche Boxster
-Porsche Cayman
-Porsche 911
-Porsche Taycan
-Porsche Panamera
 Ferrari
 Aston Martin
 Maserati
@@ -10,26 +6,12 @@ Lamborghini
 Lotus
 Mclaren
 Bentley
-BMW 235i
-BMW 240i
 BMW 335i
-BMW 340i
 BMW 535i
-BMW 540i
-BMW 550i
 BMW M3
 BMW M4
-BMW M5
 BMW M6
-BMW M8
 Audi RS3
 Audi RS4
-Audi RS5
-Audi RS6
-Audi RS7
-Audi TTRS
+Audi TT
 Mercedes C63
-Mercedes E63
-Mercedes S63
-Mercedes C43
-Mercedes E43

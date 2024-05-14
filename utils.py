@@ -43,8 +43,24 @@ class create:
     def create_webdriver(service, chrome_options):
         while True:
             try:
+                if chrome_options == None:
+                    os = platform.system()
+                    # Set the chromedriver_path based on the operating system
+                    if os == "Windows":
+                        chrome_options = "chromedriver.exe"
+                        write.console("green", "Windows platform detected")
+                    elif os == "Darwin":  # "Darwin" is the platform name for macOS
+                        write.console("green", "Darwin platform detected")
+                        chrome_options = "/Users/torrinkay/Documents/RideRadar/chromedriver-arm64.app"
+                    elif os == "Linux":
+                        write.console("green", "Linux platform detected")
+                        chrome_options = "chromedriver"
+                    else:
+                        logging.error("OS not identified: Check utils chromedriver declaration")
+
                 driver = webdriver.Chrome(service=service, options=chrome_options)
                 return driver
+            
             except SessionNotCreatedException as e:
                 write.console("yellow", f"Chromedriver is outdated. Initiating update...")
                 update = update_chromedriver("https://googlechromelabs.github.io/chrome-for-testing/#stable")

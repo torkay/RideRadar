@@ -3,6 +3,7 @@ from discord import app_commands
 import vendor_storage
 import webhook_handler
 import asyncio
+from bid_watcher import watch
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
@@ -14,7 +15,6 @@ tree = app_commands.CommandTree(client)
     description="Search for a vehicles on various salvage vendors",
     guild=discord.Object(id="1013725487476002897")
 )
-
 async def search_command(interaction: discord.Interaction, vehicle: str):
     # Send a message to acknowledge the user's command
     await interaction.response.send_message("I'm searching for the requested vehicle. Please wait...")
@@ -62,7 +62,15 @@ async def calculate_command(interaction: discord.Interaction, amount: float):
     # Send the response to the original interaction
     await interaction.response.send_message(response)
 
-
+@tree.command(
+    name="watchlist",
+    description="Add a listing to the watchlist",
+    guild=discord.Object(id="1013725487476002897")
+)
+async def watchlist_command(interaction: discord.Interaction, listing_url: str):
+    # Add the listing URL to the watchlist
+    await watch.bid(listing_url)
+    await interaction.response.send_message("Listing added to watchlist.")
 
 # Function to calculate the total amount for Manheim
 def calculate_manheim(amount):
@@ -87,4 +95,4 @@ async def on_ready():
     print("Ready!")
 
 # Run the bot
-client.run('MTIxNTk4MjM2MDk5OTM2Mjc0Mg.GMNw0k.fUw-KlZVucaaYnl3MDKSr9IHNtV-IOrxksV-fc')
+client.run('')
