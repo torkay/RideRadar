@@ -170,9 +170,9 @@ class search_by:
             
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
-            self.chrome_options.add_argument("--headless")  # Enable headless mode
-            self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
-            self.chrome_options.add_argument("--log-level=3")  # Suppress logging
+            # self.chrome_options.add_argument("--headless")  # Enable headless mode
+            # self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
+            # self.chrome_options.add_argument("--log-level=3")  # Suppress logging
 
             os = platform.system()
             # Set the chromedriver_path based on the operating system
@@ -252,7 +252,7 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.Make.{specific_search}.)")
+            driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.All.keyword({specific_search}).)")
 
             returned_vehicle_list = []
 
