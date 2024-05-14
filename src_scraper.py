@@ -170,9 +170,9 @@ class search_by:
             
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
-            # self.chrome_options.add_argument("--headless")  # Enable headless mode
-            # self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
-            # self.chrome_options.add_argument("--log-level=3")  # Suppress logging
+            self.chrome_options.add_argument("--headless")  # Enable headless mode
+            self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
+            self.chrome_options.add_argument("--log-level=3")  # Suppress logging
 
             os = platform.system()
             # Set the chromedriver_path based on the operating system
