@@ -1,0 +1,8 @@
+discord.py
+aiohttp
+colorama
+logging
+requests
+bs4
+selenium
+configparser
