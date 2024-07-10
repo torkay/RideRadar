@@ -160,9 +160,13 @@ class search_by:
             
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
-            self.chrome_options.add_argument("--headless")  # Enable headless mode
-            self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
-            self.chrome_options.add_argument("--log-level=3")  # Suppress logging
+            self.chrome_options.add_argument("--headless")
+            self.chrome_options.add_argument("--window-size=1920,1080")
+            self.chrome_options.add_argument("--disable-gpu")
+            self.chrome_options.add_argument("--no-sandbox")
+            self.chrome_options.add_argument("--disable-dev-shm-usage")
+            self.chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            self.chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
             self.chromedriver_path = None # Pass as None-Type, arg will be determined via utils, no longer here
 
@@ -266,6 +270,56 @@ class search_by:
             driver.quit()
             return returned_vehicle_list
         
+        async def search_gumtree(self):
+            specific_search_clean = self.specific_search.lower()
+            specific_search = self.specific_search.replace(" ", "+")
+            write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}")
+
+            # Initialize Chrome WebDriver with the configured options
+            service = Service(executable_path=self.chromedriver_path)
+
+            write.line()
+            driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
+            write.line(1)
+
+            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
+
+            # Suppress logging
+            logging.getLogger('selenium').setLevel(logging.WARNING)
+
+            # Wait for contents
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
+            )
+
+            vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div/a')
+            vehicle_names = []
+            returned_vehicle_list = []
+    
+            for vehicle in vehicle_cards:
+                try:
+                    vehicle_card = vehicle.get_attribute('aria-label')
+
+                    # Information extrapolation
+                    lines = vehicle_card.strip().split('\n')
+                    vehicle_name = lines[0].strip()
+                    vehicle_price = lines[1].strip().split(': ')[1].replace(' .', '')
+                    vehicle_location = lines[2].strip().split(': ')[1].replace('. Ad listed Yesterday.', '')
+                    vehicle_list_date = lines[2].strip().split('. Ad listed ')[1].replace('.', '')
+                    vehicle_link = None
+                    image_url = None
+
+                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "price": vehicle_price, "img": image_url, "location": vehicle_location, "listed": vehicle_list_date, "vendor": "Gumtree"})
+                    
+
+                except Exception as e:
+                    print(f"Error extracting aria-label: {e}")
+                    vehicle_names.append('Error extracting aria-label')
+
+            driver.quit()
+
+            return returned_vehicle_list
+
         async def search_by_specific(self):
             specific_search = self.specific_search
 
@@ -280,15 +334,19 @@ class search_by:
             except NoSearchResultsException:
                 write.console("red", f"No search results on Pickles for {specific_search}")
                 pass
+            
+            try:
+                gumtree_task = asyncio.create_task(self.search_gumtree())
+            except NoSearchResultsException:
+                write.console("red", f"No search results on Gumtree for {specific_search}")
+                pass
 
             manheim_result = await manheim_task
             pickles_result = await pickles_task
+            gumtree_result = await gumtree_task
 
-            return manheim_result + pickles_result
+            return manheim_result + pickles_result + gumtree_result
                 
-                
-
-
     async def vehicle_model(brand, model):
         await vehicle_brand(brand, True)
         pass
