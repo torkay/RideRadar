@@ -3,6 +3,7 @@ import configparser
 import asyncio
 import time
 import os
+from utils import find
 
 def set_cmd_title(title):
     os.system(f"title {title}")
@@ -14,7 +15,7 @@ async def process_vehicles(file_path):
             await webhook_handler.run(vehicle_make)
 
 async def run_handler():
-    file_path = 'vehicles.txt'
+    file_path = find.vehicle_text()
     os.system(f"title RideRadar: Scheduler (DO NOT CLOSE)")
     await process_vehicles(file_path)
     

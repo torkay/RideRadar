@@ -131,8 +131,56 @@ class search_by:
             driver.quit()
             return returned_vehicle_list
         
+        async def search_gumtree(self):
+            vehicle_make = self.vehicle_make
+            write.console("cyan", f"\nSearching gumtree for {vehicle_make}")
+
+            # Initialize Chrome WebDriver with the configured options
+            service = Service(executable_path=self.chromedriver_path)
+
+            write.line()
+            driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
+            write.line(1)
+
+            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
+
+            # Suppress logging
+            logging.getLogger('selenium').setLevel(logging.WARNING)
+
+            # Wait for contents
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
+            )
+
+            vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div/a')
+            vehicle_names = []
+            returned_vehicle_list = []
+    
+            for vehicle in vehicle_cards:
+                try:
+                    vehicle_text = vehicle.get_attribute('aria-label')
+
+                    # Information extrapolation
+                    lines = vehicle_text.strip().split('\n')
+                    vehicle_name = lines[0].strip()
+                    vehicle_price = lines[1].strip().split(': ')[1].replace(' .', '')
+                    vehicle_location = lines[2].strip().split(': ')[1].replace('. Ad listed Yesterday.', '')
+                    vehicle_list_date = lines[2].strip().split('. Ad listed ')[1].replace('.', '')
+                    vehicle_link = vehicle.get_attribute("href")
+                    image_url = vehicle.find_element((By.XPATH, '//*[@id="user-ad-1326229396"]/div[1]/div/div/div[1]/div/div[1]/img')).get_attribute("src")
+
+                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "price": vehicle_price, "img": image_url, "location": vehicle_location, "listed": vehicle_list_date, "vendor": "Gumtree"})
+                    
+
+                except Exception as e:
+                    print(f"Error extracting aria-label: {e}")
+                    vehicle_names.append('Error extracting aria-label')
+
+            driver.quit()
+
+            return returned_vehicle_list
+        
         async def search_by_brand(self):
-            print("yeet")
             vehicle_make = self.vehicle_make
 
             try:
@@ -147,12 +195,18 @@ class search_by:
                 write.console("red", f"No search results on Pickles for {vehicle_make}")
                 pass
 
+            # try:
+            #     gumtree_task = asyncio.create_task(self.search_gumtree())
+            # except NoSearchResultsException:
+            #     write.console("red", f"No search results on Gumtree for {vehicle_make}")
+            #     pass
+
             manheim_result = await manheim_task
             pickles_result = await pickles_task
+            # gumtree_results = await gumtree_task
 
             return manheim_result + pickles_result
         
-
     class specific:
         def __init__(self, specific_search):
             # Set the vehicle make
@@ -298,16 +352,16 @@ class search_by:
     
             for vehicle in vehicle_cards:
                 try:
-                    vehicle_card = vehicle.get_attribute('aria-label')
+                    vehicle_text = vehicle.get_attribute('aria-label')
 
                     # Information extrapolation
-                    lines = vehicle_card.strip().split('\n')
+                    lines = vehicle_text.strip().split('\n')
                     vehicle_name = lines[0].strip()
                     vehicle_price = lines[1].strip().split(': ')[1].replace(' .', '')
                     vehicle_location = lines[2].strip().split(': ')[1].replace('. Ad listed Yesterday.', '')
                     vehicle_list_date = lines[2].strip().split('. Ad listed ')[1].replace('.', '')
-                    vehicle_link = None
-                    image_url = None
+                    vehicle_link = vehicle.get_attribute("href")
+                    image_url = vehicle.find_element((By.XPATH, '//*[@id="user-ad-1326229396"]/div[1]/div/div/div[1]/div/div[1]/img')).get_attribute("src")
 
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "price": vehicle_price, "img": image_url, "location": vehicle_location, "listed": vehicle_list_date, "vendor": "Gumtree"})
                     
@@ -315,6 +369,64 @@ class search_by:
                 except Exception as e:
                     print(f"Error extracting aria-label: {e}")
                     vehicle_names.append('Error extracting aria-label')
+
+            driver.quit()
+
+            return returned_vehicle_list
+
+        async def search_autotrader(self):
+            specific_search_clean = self.specific_search.lower()
+            try:
+                if " " not in self.specific_search:
+                    # TODO: raise exceptions (no multi-layerd title requests)
+                    return None
+                else:
+                    raise Exception
+            except Exception as e:
+                pass
+            write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}")
+
+            # Initialize Chrome WebDriver with the configured options
+            service = Service(executable_path=self.chromedriver_path)
+
+            write.line()
+            driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
+            write.line(1)
+
+            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{self.specific_search}/k0c18320r10?view=gallery")
+
+            # Suppress logging
+            logging.getLogger('selenium').setLevel(logging.WARNING)
+
+            # Wait for contents
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
+            )
+
+            vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div/a')
+            vehicle_names = []
+            returned_vehicle_list = []
+    
+            for vehicle in vehicle_cards:
+                try:
+                    vehicle_text = vehicle.get_attribute('aria-label')
+
+                    # Information extrapolation
+                    lines = vehicle_text.strip().split('\n')
+                    vehicle_name = lines[0].strip()
+                    vehicle_price = lines[1].strip().split(': ')[1].replace(' .', '')
+                    vehicle_location = lines[2].strip().split(': ')[1].replace('. Ad listed Yesterday.', '')
+                    vehicle_list_date = lines[2].strip().split('. Ad listed ')[1].replace('.', '')
+                    vehicle_link = vehicle.get_attribute("href")
+                    image_url = vehicle.find_element((By.XPATH, '//*[@id="user-ad-1326229396"]/div[1]/div/div/div[1]/div/div[1]/img')).get_attribute("src")
+
+                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "price": vehicle_price, "img": image_url, "location": vehicle_location, "listed": vehicle_list_date, "vendor": "Gumtree"})
+                    
+
+                except Exception as e:
+                    # print(f"Error extracting aria-label: {e}")
+                    # vehicle_names.append('Error extracting aria-label')
+                    pass
 
             driver.quit()
 

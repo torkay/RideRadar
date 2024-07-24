@@ -38,6 +38,21 @@ class write:
         else:
             write.console("white", f"\n{seperator}")
 
+class find:
+    def vehicle_text():
+        os = platform.system()
+        if os == "Windows":
+            write.console("green", "Windows platform detected")
+            return "" #TODO figure this out
+        elif os == "Darwin":
+            write.console("green", "Darwin platform detected")
+            return "/Users/torrinkay/Desktop/RideRadar/RideRadar/engine/vehicles.txt"
+        elif os == "Linux":
+            write.console("green", "Linux platform detected")
+            return "" #TODO figure this out as well
+        else:
+            logging.error("OS not identified: Check utils chromedriver declaration")
+
 class create:
     @staticmethod
     def create_webdriver(service, chrome_options):
