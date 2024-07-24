@@ -55,6 +55,8 @@ Additionally, point `webhook_handler.py` toward desired web address for personal
 > Development on 24/7 vehicle scout service is in fruition, just bought a Raspberry Pi 5, in hopes to host this locally!
 
 ### To do:
+> Init linux server in virtual environment for packages and install 24/7 schedule.
+
 > Extend the scope of web-crawler to various other used car vendors including: Facebook marketplace via their developer api, Carsales.com.au, Grays.com and Gumtree.com.au!
 
 > Have the service hosted via my Raspberry Pi 5 server, and have a full-stack portal hosted in conjunction with torkay.com that'll connect to my local server in order to crawl the web.
