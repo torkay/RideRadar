@@ -133,7 +133,7 @@ class search_by:
 
         async def search_gumtree(self):
             vehicle_make = self.vehicle_make
-            write.console("cyan", f"\nSearching gumtree for {vehicle_make}")
+            write.console("cyan", f"\nSearching gumtree for {vehicle_make}...")
 
             # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
@@ -142,70 +142,48 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            # driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
-
-
+            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{vehicle_make}/k0c18320r10?view=gallery")
+            returned_vehicle_list = []
 
             # Suppress logging
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
-            # Wait for contents
-            WebDriverWait(driver,5).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
-            )
-
-            vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div/a')
-            vehicle_names = []
-            returned_vehicle_list = []
-    
             try:
-                WebDriverWait(driver,5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
+                # Wait until the parent element is present
+                parent_element = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[2]/div'))
                 )
-
-                # Find all vehicle cards
-                vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
-
-                # Iterate over each card
-                for card in vehicle_cards:
-                    # Find the first direct child <a> tag within the card
-                    vehicle_link = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ccg-product-card-link-")]').get_attribute("href")
-                    # Find the title text within the div with class "title pb-0 text-truncate-2l"
-                    vehicle_name = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
-                    # Find vehicle subheading / subtitle
-                    vehicle_subheading = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[2]/span').text
-                    # Find the image URL from the "lazy-load-bg"
-                    image_url = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ci-img-wrapper-")]/div/div[1]/div/div[1]/img').get_attribute("src")
-                    # Find location of vehicle //*[@id="ps-cu-location-wrapper-61628702"]/p
-                    vehicle_location = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-cu-location-wrapper-")]/p').text
-                    # Find the WOVR status
-                    wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
-                    # Find cylinder count //*[@id="ps-ckf-key-features-4to6-61628702"]/div[1]/span[2]/p
-                    vehicle_cylinder = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[1]/span[2]/p').text
-                    # Find gearbox detail //*[@id="ps-ckf-key-features-4to6-61628702"]/div[2]/span[2]/p
-                    vehicle_gearbox = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[2]/span[2]/p').text
-                    # Find vehicle kilometers (Not always valid) //*[@id="ps-ckf-key-features-1to3-61621077"]/div[1]/span[2]/p
+                
+                # Find all 'a' elements that are children of the parent element
+                child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
+                
+                # Iterate over each child element
+                for child in child_elements:
                     try:
-                        vehicle_odometer = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-1to3")]/div[1]/span[2]/p').text
+                        # Extract necessary information from each child element
+                        vehicle_link = child.get_attribute('href')
+                        aria_label = child.get_attribute('aria-label')
+                        image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
+                        
+                        # Split the aria-label to extract individual pieces of information
+                        parts = aria_label.split(".")
+                        vehicle_name = parts[0].strip()
+                        vehicle_price = parts[1].strip().replace("Price: ", "")
+                        vehicle_location = parts[2].strip().replace("Location: ", "")
+                        time_listed = parts[3].strip().replace("Ad listed ", "")
+                        
+
+                        returned_vehicle_list.append({"title": vehicle_name, "price": vehicle_price, "link": vehicle_link, "img": image_url, "location": vehicle_location, "date": time_listed, "vendor": "Gumtree"})
+                    
                     except:
-                        vehicle_odometer = "N/A odometer"
-                    # Find the auction date //*[@id="details-timezone-dropdown-61628702"]/div/time
-                    auction_date = card.find_element(By.XPATH, '//*[starts-with(@id, "details-timezone-dropdown-")]/div/time').text
-                    # Find other information (Date/KM's) //*[@id="ps-ckf-key-features-1to3-"]/div/span[2]/p
-                    wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
-                    # Append the data to the list if the link is not already present
-                    returned_vehicle_list.append({"title": vehicle_name, "subtitle": vehicle_subheading, "link": vehicle_link, "img": image_url, "location": vehicle_location, "cylinder": vehicle_cylinder, "gearbox": vehicle_gearbox, "wovr": wovr_status, "odometer": vehicle_odometer, "date": auction_date, "vendor": "Pickles"})
+                        pass
 
-
-                # Print a message indicating data processing
                 write.console("green", "\nProcessing pickles data...")
 
-            except Exception as e:
+            except:
                 write.console("red", f"\nNo results for {vehicle_make.capitalize()} on pickles...")
-                # print(e)
-
+                        
             driver.quit()
-
             return returned_vehicle_list
         
 
@@ -374,15 +352,6 @@ class search_by:
             return returned_vehicle_list
         
         async def search_gumtree(self):
-            # # Gumtree exclusive featureset
-            # if not self.gumtree_include_ads:
-            #     self.gumtree_include_ads = False
-
-            # print(self.gumtree_include_ads)
-
-            # include_ads = self.gumtree_include_ads 
-            vehicle_ad_cards = '//*[@id="react-root"]/div/div[2]/div/div[2]/main/section/div[1]/div/a'
-            vehicle_cardssss = '//*[@id="react-gumr"]/div/div[2]/div/div[2]/main/section/div[2]/div/a'
             
             specific_search_clean = self.specific_search.lower()
             specific_search = self.specific_search.replace(" ", "+")
@@ -397,41 +366,47 @@ class search_by:
 
             driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
 
+            returned_vehicle_list = []
+
             # Suppress logging
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
-            # Wait for contents
-            WebDriverWait(driver,5).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
-            )
+            try:
+                # Wait until the parent element is present
+                parent_element = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[2]/div'))
+                )
+                
+                # Find all 'a' elements that are children of the parent element
+                child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
+                
+                # Iterate over each child element
+                for child in child_elements:
+                    try:
+                        # Extract necessary information from each child element
+                        vehicle_link = child.get_attribute('href')
+                        aria_label = child.get_attribute('aria-label')
+                        image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
+                        
+                        # Split the aria-label to extract individual pieces of information
+                        parts = aria_label.split(".")
+                        vehicle_name = parts[0].strip()
+                        vehicle_price = parts[1].strip().replace("Price: ", "")
+                        vehicle_location = parts[2].strip().replace("Location: ", "")
+                        time_listed = parts[3].strip().replace("Ad listed ", "")
+                        
 
-            vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div/a')
-            vehicle_names = []
-            returned_vehicle_list = []
-    
-            for vehicle in vehicle_cards:
-                try:
-                    vehicle_text = vehicle.get_attribute('aria-label')
-
-                    # Information extrapolation
-                    lines = vehicle_text.strip().split('\n')
-                    vehicle_name = lines[0].strip()
-                    vehicle_price = lines[1].strip().split(': ')[1].replace(' .', '')
-                    vehicle_location = lines[2].strip().split(': ')[1].replace('. Ad listed Yesterday.', '')
-                    vehicle_list_date = lines[2].strip().split('. Ad listed ')[1].replace('.', '')
-                    vehicle_link = vehicle.get_attribute("href")
-                    image_url = vehicle.find_element((By.XPATH, '//*[@id="user-ad-1326229396"]/div[1]/div/div/div[1]/div/div[1]/img')).get_attribute("src")
-
-                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "price": vehicle_price, "img": image_url, "location": vehicle_location, "listed": vehicle_list_date, "vendor": "Gumtree"})
+                        returned_vehicle_list.append({"title": vehicle_name, "price": vehicle_price, "link": vehicle_link, "img": image_url, "location": vehicle_location, "date": time_listed, "vendor": "Gumtree"})
                     
+                    except:
+                        pass
 
-                except Exception as e:
-                    # print(f"Error extracting aria-label: {e}")
-                    # vehicle_names.append('Error extracting aria-label')
-                    pass
+                write.console("green", "\nProcessing pickles data...")
 
+            except:
+                write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on pickles...")
+                        
             driver.quit()
-
             return returned_vehicle_list
 
         async def search_autotrader(self):

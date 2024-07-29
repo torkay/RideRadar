@@ -6,7 +6,7 @@ from src_scraper import search_by, request
 import asyncio
 from colorama import init, Fore, Style
 import time
-from vendor_storage import manheim, pickles
+from vendor_storage import manheim, pickles, gumtree
 from utils import *
 
 init()
@@ -40,40 +40,60 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
             async with aiohttp.ClientSession() as session:
                 webhook = Webhook.from_url(url, session=session)
                 # Try new embed else run old embed
-                try:
+                if vehicle["vendor"] == "Gumtree":
                     embed = discord.Embed(
-                        title=vehicle["title"],
-                        url=vehicle["link"],
-                        description=f"{vehicle['subtitle']}",
-                        color=0x00ff00
-                    )
-                    if vehicle["vendor"] == "Manheim":
-                        embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
-                    elif vehicle["vendor"] == "Pickles":
-                        embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
+                            title=vehicle["title"],
+                            url=vehicle["link"],
+                            description=f"Newly added vehicle to **{vehicle['vendor']}!**",
+                            color=0x00ff00
+                        )
+                    embed.set_author(name=gumtree["Name"], url=gumtree["Url"], icon_url=gumtree["Logo"])
                     embed.set_image(url=vehicle["img"])
                     embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
                     embed.add_field(name="📍 Location", value=f"{vehicle['location']}")
                     embed.add_field(name="💼 Vendor", value=f"{vehicle['vendor']}")
-                    embed.add_field(name="📋 WOVR", value=f"{vehicle['wovr']}")
-                    embed.add_field(name="🔢 Cylinder", value=f"{vehicle['cylinder']}")
-                    embed.add_field(name="⚙️ Gearbox", value=f"{vehicle['gearbox']}  ")
-                    embed.add_field(name="⏱️ Odometer", value=f"{vehicle['odometer']}")
-                    embed.add_field(name="🕒 Time of Auction", value=f"{vehicle['date']}")
-                
-                except:
-                    embed = discord.Embed(
-                        title=vehicle["title"],
-                        url=vehicle["link"],
-                        description=f"Newly added vehicle to **{vehicle['vendor']}!**",
-                        color=0x00ff00
-                    )
-                    if vehicle["vendor"] == "Manheim":
-                        embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
-                    elif vehicle["vendor"] == "Pickles":
-                        embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
-                    embed.set_image(url=vehicle["img"])
-                    embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
+                    embed.add_field(name="🏷️ Price", value=f"{vehicle['price']}")
+                    embed.add_field(name="🕒 Listed", value=f"{vehicle['date']}")
+
+                else:
+                    try:
+                        embed = discord.Embed(
+                            title=vehicle["title"],
+                            url=vehicle["link"],
+                            description=f"{vehicle['subtitle']}",
+                            color=0x00ff00
+                        )
+                        if vehicle["vendor"] == "Manheim":
+                            embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
+                        elif vehicle["vendor"] == "Pickles":
+                            embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
+                        elif vehicle["vendor"] == "Gumtree":
+                            embed.set_author(name=gumtree["Name"], url=gumtree["Url"], icon_url=gumtree["Logo"])
+                        embed.set_image(url=vehicle["img"])
+                        embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
+                        embed.add_field(name="📍 Location", value=f"{vehicle['location']}")
+                        embed.add_field(name="💼 Vendor", value=f"{vehicle['vendor']}")
+                        embed.add_field(name="📋 WOVR", value=f"{vehicle['wovr']}")
+                        embed.add_field(name="🔢 Cylinder", value=f"{vehicle['cylinder']}")
+                        embed.add_field(name="⚙️ Gearbox", value=f"{vehicle['gearbox']}  ")
+                        embed.add_field(name="⏱️ Odometer", value=f"{vehicle['odometer']}")
+                        embed.add_field(name="🕒 Time of Auction", value=f"{vehicle['date']}")
+                    
+                    except:
+                        embed = discord.Embed(
+                            title=vehicle["title"],
+                            url=vehicle["link"],
+                            description=f"Newly added vehicle to **{vehicle['vendor']}!**",
+                            color=0x00ff00
+                        )
+                        if vehicle["vendor"] == "Manheim":
+                            embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
+                        elif vehicle["vendor"] == "Pickles":
+                            embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
+                        elif vehicle["vendor"] == "Gumtree":
+                            embed.set_author(name=gumtree["Name"], url=gumtree["Url"], icon_url=gumtree["Logo"])
+                        embed.set_image(url=vehicle["img"])
+                        embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
 
 
                 await webhook.send(embed=embed, username="Captain Hook")
