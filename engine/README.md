@@ -8,6 +8,10 @@ Pickles engine update 0.0.3
 
 ![Showcase Image](./storage/pickes-update.md)
 
+Gumtree engine update 0.0.3
+1) Fixed gumtree engine
+2) Enhanced gumtree engine and webhook handler
+
 ## Engine usage
 Refer to `Test.py` for example usage
 
@@ -30,8 +34,8 @@ Step 3. Run `schedule_loop.py` on your local machine
 Optionally, alter the wait time before shifts i.e. `next_run_time = time.time() + (60 * 60 * 3)  # 3 hours from now`
 
 ## ToDo:
-* Fix Gumtree engine
-* Enhance Manheim engine
+* Add gumtree listing requirements before appenditure
+* Enhance Manheim engine and webhook
 
 ## Machines to run on:
 * MacOS (Primary)
