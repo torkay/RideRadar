@@ -77,7 +77,7 @@ class search_by:
 
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
                     
-                write.console("yellow", "\nProcessing manheim data...")
+                write.console("green", "\nProcessing manheim data...")
             except Exception:
                 write.console("red", f"\nNo results for {vehicle_make} on manheim...")
                 pass
@@ -103,7 +103,7 @@ class search_by:
             returned_vehicle_list = []
 
             try:
-                WebDriverWait(driver, 10).until(
+                WebDriverWait(driver,5).until(
                     EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
                 )
 
@@ -122,7 +122,7 @@ class search_by:
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
 
                 # Print a message indicating data processing
-                write.console("yellow", "\nProcessing pickles data...")
+                write.console("green", "\nProcessing pickles data...")
 
             except Exception as e:
                 write.console("red", f"\nNo results for {vehicle_make.capitalize()} on pickles...")
@@ -150,7 +150,7 @@ class search_by:
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
             # Wait for contents
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver,5).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
             )
 
@@ -271,7 +271,7 @@ class search_by:
 
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
                     
-                write.console("yellow", "\nProcessing manheim data...")
+                write.console("green", "\nProcessing manheim data...")
             except Exception:
                 write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on manheim...")
                 pass
@@ -300,7 +300,7 @@ class search_by:
             returned_vehicle_list = []
 
             try:
-                WebDriverWait(driver, 10).until(
+                WebDriverWait(driver,5).until(
                     EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
                 )
 
@@ -313,16 +313,35 @@ class search_by:
                     vehicle_link = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ccg-product-card-link-")]').get_attribute("href")
                     # Find the title text within the div with class "title pb-0 text-truncate-2l"
                     vehicle_name = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
+                    # Find vehicle subheading / subtitle
+                    vehicle_subheading = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[2]/span').text
                     # Find the image URL from the "lazy-load-bg"
                     image_url = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ci-img-wrapper-")]/div/div[1]/div/div[1]/img').get_attribute("src")
+                    # Find location of vehicle //*[@id="ps-cu-location-wrapper-61628702"]/p
+                    vehicle_location = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-cu-location-wrapper-")]/p').text
+                    # Find the WOVR status
+                    wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
+                    # Find cylinder count //*[@id="ps-ckf-key-features-4to6-61628702"]/div[1]/span[2]/p
+                    vehicle_cylinder = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[1]/span[2]/p').text
+                    # Find gearbox detail //*[@id="ps-ckf-key-features-4to6-61628702"]/div[2]/span[2]/p
+                    vehicle_gearbox = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[2]/span[2]/p').text
+                    # Find vehicle kilometers (Not always valid) //*[@id="ps-ckf-key-features-1to3-61621077"]/div[1]/span[2]/p
+                    try:
+                        vehicle_odometer = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-1to3")]/div[1]/span[2]/p').text
+                    except:
+                        vehicle_odometer = "N/A odometer"
+                    # Find other information (Date/KM's) //*[@id="ps-ckf-key-features-1to3-"]/div/span[2]/p
+                    wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
                     # Append the data to the list if the link is not already present
-                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
+                    returned_vehicle_list.append({"title": vehicle_name, "subtitle": vehicle_subheading, "link": vehicle_link, "img": image_url, "location": vehicle_location, "cylinder": vehicle_cylinder, "gearbox": vehicle_gearbox, "wovr": wovr_status, "odometer": vehicle_odometer, "vendor": "Pickles"})
+
 
                 # Print a message indicating data processing
-                write.console("yellow", "\nProcessing pickles data...")
+                write.console("green", "\nProcessing pickles data...")
 
-            except Exception:
+            except Exception as e:
                 write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on pickles...")
+                # print(e)
 
             driver.quit()
             return returned_vehicle_list
@@ -355,7 +374,7 @@ class search_by:
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
             # Wait for contents
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver,5).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
             )
 
@@ -413,7 +432,7 @@ class search_by:
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
             # Wait for contents
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver,5).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[1]/div'))
             )
 

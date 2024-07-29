@@ -35,29 +35,53 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
     new_data = [vehicle for vehicle in current_data if vehicle not in previous_data]
 
     if new_data:
-        write.console("green", "Webhooking embeds for new data...")
+        write.console("green", "\nWebhooking new embeds...")
         for vehicle in new_data:
             async with aiohttp.ClientSession() as session:
                 webhook = Webhook.from_url(url, session=session)
-                embed = discord.Embed(
-                    title=vehicle["title"],
-                    url=vehicle["link"],
-                    description=f"Newly added vehicle to **{vehicle['vendor']}!**",
-                    color=0x00ff00
-                )
-                if vehicle["vendor"] == "Manheim":
-                    embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
-                elif vehicle["vendor"] == "Pickles":
-                    embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
-                embed.set_image(url=vehicle["img"])
-                embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
+                # Try new embed else run old embed
+                try:
+                    embed = discord.Embed(
+                        title=vehicle["title"],
+                        url=vehicle["link"],
+                        description=f"{vehicle['subtitle']}",
+                        color=0x00ff00
+                    )
+                    if vehicle["vendor"] == "Manheim":
+                        embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
+                    elif vehicle["vendor"] == "Pickles":
+                        embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
+                    embed.set_image(url=vehicle["img"])
+                    embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
+                    embed.add_field(name="📍 Location", value=f"{vehicle['location']}")
+                    embed.add_field(name="💼 Vendor", value=f"{vehicle['vendor']}")
+                    embed.add_field(name="📋 WOVR", value=f"{vehicle['wovr']}")
+                    embed.add_field(name="🔢 Cylinder", value=f"{vehicle['cylinder']}")
+                    embed.add_field(name="⚙️ Gearbox", value=f"{vehicle['gearbox']}  ")
+                    embed.add_field(name="⏱️ Odometer", value=f"{vehicle['odometer']}")
+                
+                except:
+                    embed = discord.Embed(
+                        title=vehicle["title"],
+                        url=vehicle["link"],
+                        description=f"Newly added vehicle to **{vehicle['vendor']}!**",
+                        color=0x00ff00
+                    )
+                    if vehicle["vendor"] == "Manheim":
+                        embed.set_author(name=manheim["Name"], url=manheim["Url"], icon_url=manheim["Logo"])
+                    elif vehicle["vendor"] == "Pickles":
+                        embed.set_author(name=pickles["Name"], url=pickles["Url"], icon_url=pickles["Logo"])
+                    embed.set_image(url=vehicle["img"])
+                    embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
+
 
                 await webhook.send(embed=embed, username="Captain Hook")
-        print(f"New embeds sent.{Style.RESET_ALL}")
+        write.console("green", "New embeds sent.")
         return True
     else:
-        print(f"{Fore.GREEN}\nNo new data found.")
-        print(f"No embeds sent.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}")
+        write.console("yellow", "No new data found.")
+        write.console("yellow", "No embeds sent.")
         return False
     
 

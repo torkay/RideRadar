@@ -25,12 +25,20 @@ async def main():
     
     # Infinite loop to run the scheduler
     while True:
+        start_time = time.time()
         await run_handler()
-        print("Awaiting schedule...")
-        await asyncio.sleep(((60)*60)*3)  # Check three hour
-        current_time = time.localtime()
-        formatted_time = time.strftime("%I:%M%p %m/%d/%y", current_time)
-        print(f"Initiating search on {formatted_time}")
+        end_time = time.time()
+
+        elapsed_time = end_time - start_time
+        formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+
+        next_run_time = time.time() + (60 * 60 * 3)  # 3 hours from now
+        formatted_next_run_time = time.strftime("%I:%M%p %m/%d/%y", time.localtime(next_run_time))
+        write.line(space=True, override=True)
+        write.console("white", f"Worker completed search | Time elapsed: {formatted_elapsed_time} | Waiting until {formatted_next_run_time}")
+        write.line(override=True)
+        await asyncio.sleep(((60)*60)*12)  # Wait 12 hours before the next run
+        write.console('white', f"Started RideRadar server instance: version {version}")
 
 if __name__ == "__main__":
     if find.server_os() == 'windows':
