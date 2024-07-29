@@ -10,6 +10,8 @@ import logging
 import platform
 import re
 
+from time import sleep
+
 #init()
 
 class NoSearchResultsException(Exception):
@@ -23,10 +25,13 @@ class search_by:
             
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
-            self.chrome_options.add_argument("--headless")  # Enable headless mode
-            self.chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (needed for headless mode)
-            self.chrome_options.add_argument("--log-level=3")  # Suppress logging
-
+            self.chrome_options.add_argument("--headless")
+            self.chrome_options.add_argument("--window-size=1920,1080")
+            self.chrome_options.add_argument("--disable-gpu")
+            self.chrome_options.add_argument("--no-sandbox")
+            self.chrome_options.add_argument("--disable-dev-shm-usage")
+            self.chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            self.chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
        
             self.chromedriver_path = None # Pass as None-Type, arg will be determined via utils, no longer here
 
@@ -82,7 +87,6 @@ class search_by:
             return returned_vehicle_list
 
 
-
         async def search_pickles(self):
 
             vehicle_make = self.vehicle_make
@@ -95,42 +99,38 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.Make.{vehicle_make}.)")
-
+            driver.get(f"https://www.pickles.com.au/used/search/lob/salvage/items/{vehicle_make}?page=1")
             returned_vehicle_list = []
 
             try:
                 WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, "//div[@ng-repeat='resultItem in searchResults']//a"))
-                    )
-                
-                # Find all cards
-                vehicle_cards = driver.find_elements(By.XPATH, "//div[@ng-repeat='resultItem in searchResults']")
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
+                )
+
+                # Find all vehicle cards
+                vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
 
                 # Iterate over each card
                 for card in vehicle_cards:
                     # Find the first direct child <a> tag within the card
-                    vehicle_link = card.find_element(By.XPATH, ".//a[not(ancestor::a)]").get_attribute("href")
+                    vehicle_link = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ccg-product-card-link-")]').get_attribute("href")
                     # Find the title text within the div with class "title pb-0 text-truncate-2l"
-                    vehicle_name = card.find_element(By.XPATH, ".//div[@class='title pb-0 text-truncate-2l']//a").text
-                    # Find the image URL from the "lazy-load-bg" attribute
-                    style_attribute = card.find_element(By.XPATH, ".//div[@ng-repeat='imageName in resultItem.Thumbnails track by $index']").get_attribute("style")
-                    img_extraction_sequence = r'background-image:\s*url\("([^"]+)"\)' # Define the regex pattern to match the background image URL
-                    img_content = re.findall(img_extraction_sequence, style_attribute)
-                    image_url = img_content[0]
+                    vehicle_name = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
+                    # Find the image URL from the "lazy-load-bg"
+                    image_url = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ci-img-wrapper-")]/div/div[1]/div/div[1]/img').get_attribute("src")
                     # Append the data to the list if the link is not already present
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
 
-                # print(f"Processing data...{Style.RESET_ALL}")
+                # Print a message indicating data processing
                 write.console("yellow", "\nProcessing pickles data...")
 
-            except Exception:
-                write.console("red", f"\nNo results for {vehicle_make} on pickles...")
-                pass
+            except Exception as e:
+                write.console("red", f"\nNo results for {vehicle_make.capitalize()} on pickles...")
 
             driver.quit()
             return returned_vehicle_list
         
+
         async def search_gumtree(self):
             vehicle_make = self.vehicle_make
             write.console("cyan", f"\nSearching gumtree for {vehicle_make}")
@@ -142,7 +142,9 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
+            # driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
+
+
 
             # Suppress logging
             logging.getLogger('selenium').setLevel(logging.WARNING)
@@ -173,13 +175,16 @@ class search_by:
                     
 
                 except Exception as e:
-                    print(f"Error extracting aria-label: {e}")
-                    vehicle_names.append('Error extracting aria-label')
+                    # print(f"Error extracting aria-label: {e}")
+                    # vehicle_names.append('Error extracting aria-label')
+                    pass
 
             driver.quit()
 
             return returned_vehicle_list
         
+
+
         async def search_by_brand(self):
             vehicle_make = self.vehicle_make
 
@@ -278,8 +283,10 @@ class search_by:
         async def search_pickles(self):
 
             specific_search_clean = self.specific_search.upper()
-            specific_search = self.specific_search.replace(" ", "%20")
-            write.console("cyan", f"\nSearching pickles for {specific_search_clean.capitalize()}")
+            specific_search = self.specific_search.split()
+            first_word = specific_search[0]
+            second_word = specific_search[1] if len(specific_search) > 1 else ""
+            write.console("cyan", f"\nSearching pickles for {specific_search_clean.capitalize()}...")
 
             # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
@@ -288,43 +295,49 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            driver.get(f"https://www.pickles.com.au/damaged-salvage/item/search#!/search-result?q=(And.ProductType.Vehicles._.All.keyword({specific_search}).)")
+            driver.get(f"https://www.pickles.com.au/used/search/lob/salvage/items/{first_word}?page=1&search={second_word}")
 
             returned_vehicle_list = []
 
             try:
                 WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, "//div[@ng-repeat='resultItem in searchResults']//a"))
-                    )
-                
-                # Find all cards
-                vehicle_cards = driver.find_elements(By.XPATH, "//div[@ng-repeat='resultItem in searchResults']")
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
+                )
+
+                # Find all vehicle cards
+                vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
 
                 # Iterate over each card
                 for card in vehicle_cards:
                     # Find the first direct child <a> tag within the card
-                    vehicle_link = card.find_element(By.XPATH, ".//a[not(ancestor::a)]").get_attribute("href")
+                    vehicle_link = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ccg-product-card-link-")]').get_attribute("href")
                     # Find the title text within the div with class "title pb-0 text-truncate-2l"
-                    vehicle_name = card.find_element(By.XPATH, ".//div[@class='title pb-0 text-truncate-2l']//a").text
-                    # Find the image URL from the "lazy-load-bg" attribute
-                    style_attribute = card.find_element(By.XPATH, ".//div[@ng-repeat='imageName in resultItem.Thumbnails track by $index']").get_attribute("style")
-                    img_extraction_sequence = r'background-image:\s*url\("([^"]+)"\)' # Define the regex pattern to match the background image URL
-                    img_content = re.findall(img_extraction_sequence, style_attribute)
-                    image_url = img_content[0]
+                    vehicle_name = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
+                    # Find the image URL from the "lazy-load-bg"
+                    image_url = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ci-img-wrapper-")]/div/div[1]/div/div[1]/img').get_attribute("src")
                     # Append the data to the list if the link is not already present
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
 
-                # print(f"Processing data...{Style.RESET_ALL}")
+                # Print a message indicating data processing
                 write.console("yellow", "\nProcessing pickles data...")
 
             except Exception:
                 write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on pickles...")
-                pass
 
             driver.quit()
             return returned_vehicle_list
         
         async def search_gumtree(self):
+            # # Gumtree exclusive featureset
+            # if not self.gumtree_include_ads:
+            #     self.gumtree_include_ads = False
+
+            # print(self.gumtree_include_ads)
+
+            # include_ads = self.gumtree_include_ads 
+            vehicle_ad_cards = '//*[@id="react-root"]/div/div[2]/div/div[2]/main/section/div[1]/div/a'
+            vehicle_cardssss = '//*[@id="react-gumr"]/div/div[2]/div/div[2]/main/section/div[2]/div/a'
+            
             specific_search_clean = self.specific_search.lower()
             specific_search = self.specific_search.replace(" ", "+")
             write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}")
@@ -367,8 +380,9 @@ class search_by:
                     
 
                 except Exception as e:
-                    print(f"Error extracting aria-label: {e}")
-                    vehicle_names.append('Error extracting aria-label')
+                    # print(f"Error extracting aria-label: {e}")
+                    # vehicle_names.append('Error extracting aria-label')
+                    pass
 
             driver.quit()
 
@@ -384,7 +398,7 @@ class search_by:
                     raise Exception
             except Exception as e:
                 pass
-            write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}")
+            write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}...")
 
             # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
@@ -477,5 +491,5 @@ async def request(function_name, *args, **kwargs):
         raise AttributeError(f"Function {function_name} does not exist.")
 
 if __name__ == "__main__":
-    write.console("red", "Unable to run src_scraper from raw")
+    write.console("red", "Unable to run src_scraper from source")
     pass

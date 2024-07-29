@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Functions Example</title>
+</head>
+<body>
+    <button id="button1">Button 1</button>
+    <button id="button2">Button 2</button>
+    <button id="button3">Button 3</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            document.getElementById('button1').addEventListener('click', function() {
+                callPythonFunction('/button1');
+            });
+
+            document.getElementById('button2').addEventListener('click', function() {
+                callPythonFunction('/button2');
+            });
+
+            document.getElementById('button3').addEventListener('click', function() {
+                callPythonFunction('/button3');
+            });
+        });
+
+        function callPythonFunction(endpoint) {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>

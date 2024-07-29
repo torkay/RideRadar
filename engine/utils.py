@@ -10,6 +10,8 @@ import platform
 from selenium import webdriver
 from selenium.common.exceptions import SessionNotCreatedException
 
+version = "0.0.2"
+
 class write:
     def console(color, text: str):
         colors = {
@@ -31,15 +33,30 @@ class write:
         else:
             logging.error("Error occured during coloring console: Invalid Color")
 
-    def line(space=None):
-        seperator = "================================================================================================"
-        if space == None:
-            write.console("white", seperator)
+    def line(space=None, override=None):
+        # For whatever reason, verbose chromedriver logs are windows exclusive
+        if find.server_os == 'windows' or override:
+            seperator = "================================================================================================"
+            if space == None:
+                write.console("white", seperator)
+            else:
+                write.console("white", f"\n{seperator}")
         else:
-            write.console("white", f"\n{seperator}")
+            pass
 
 class find:
+    def server_os():
+        """ Return (str -> 'linux', 'darwin', 'windows', 'unknown') """
+        os = platform.system()
+        switch = {
+            'Linux': 'linux',
+            'Darwin': 'darwin',
+            'Windows': 'windows',
+        }
+        return switch.get(os, 'Unknown Operating System')
+
     def vehicle_text():
+        """ Verbose vehicle txt path declaration """
         os = platform.system()
         if os == "Windows":
             write.console("green", "Windows platform detected")

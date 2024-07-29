@@ -4,8 +4,8 @@ import src_scraper as src
 import asyncio
 
 async def test():
-    search = src.search_by.specific("Toyota")
-    request = await search.search_by_specific()
+    search = src.search_by.specific("Mercedes C63")
+    request = await search.search_pickles()
     print(request)
 
 if __name__ == "__main__":

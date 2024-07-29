@@ -3,7 +3,7 @@ import configparser
 import asyncio
 import time
 import os
-from utils import find
+from utils import find, write, version
 
 def set_cmd_title(title):
     os.system(f"title {title}")
@@ -16,10 +16,12 @@ async def process_vehicles(file_path):
 
 async def run_handler():
     file_path = find.vehicle_text()
-    os.system(f"title RideRadar: Scheduler (DO NOT CLOSE)")
+    if find.server_os() == 'windows':
+        os.system(f"title RideRadar: Scheduler (DO NOT CLOSE)")
     await process_vehicles(file_path)
     
 async def main():
+    ''' Future scale TODO: on rate request limit acquire iteratable ip addresses or variable sleep timer '''
     
     # Infinite loop to run the scheduler
     while True:
@@ -31,5 +33,9 @@ async def main():
         print(f"Initiating search on {formatted_time}")
 
 if __name__ == "__main__":
-    set_cmd_title("Warning - Do Not Close")
+    if find.server_os() == 'windows':
+        set_cmd_title("Warning - Do Not Close")
+    write.line(space=True, override=True)
+    write.console('white', f"Started RideRadar server instance: version {version}")
+    write.line(override=True)
     asyncio.run(main())

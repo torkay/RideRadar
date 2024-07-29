@@ -53,7 +53,7 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
                 embed.set_footer(text="If there's no image, I'm bandwidth restricted!")
 
                 await webhook.send(embed=embed, username="Captain Hook")
-        print(f"Embeds assumed successfully sent.{Style.RESET_ALL}")
+        print(f"New embeds sent.{Style.RESET_ALL}")
         return True
     else:
         print(f"{Fore.GREEN}\nNo new data found.")
