@@ -59,6 +59,7 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
                     embed.add_field(name="🔢 Cylinder", value=f"{vehicle['cylinder']}")
                     embed.add_field(name="⚙️ Gearbox", value=f"{vehicle['gearbox']}  ")
                     embed.add_field(name="⏱️ Odometer", value=f"{vehicle['odometer']}")
+                    embed.add_field(name="🕒 Time of Auction", value=f"{vehicle['date']}")
                 
                 except:
                     embed = discord.Embed(

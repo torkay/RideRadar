@@ -158,26 +158,51 @@ class search_by:
             vehicle_names = []
             returned_vehicle_list = []
     
-            for vehicle in vehicle_cards:
-                try:
-                    vehicle_text = vehicle.get_attribute('aria-label')
+            try:
+                WebDriverWait(driver,5).until(
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
+                )
 
-                    # Information extrapolation
-                    lines = vehicle_text.strip().split('\n')
-                    vehicle_name = lines[0].strip()
-                    vehicle_price = lines[1].strip().split(': ')[1].replace(' .', '')
-                    vehicle_location = lines[2].strip().split(': ')[1].replace('. Ad listed Yesterday.', '')
-                    vehicle_list_date = lines[2].strip().split('. Ad listed ')[1].replace('.', '')
-                    vehicle_link = vehicle.get_attribute("href")
-                    image_url = vehicle.find_element((By.XPATH, '//*[@id="user-ad-1326229396"]/div[1]/div/div/div[1]/div/div[1]/img')).get_attribute("src")
+                # Find all vehicle cards
+                vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
 
-                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "price": vehicle_price, "img": image_url, "location": vehicle_location, "listed": vehicle_list_date, "vendor": "Gumtree"})
-                    
+                # Iterate over each card
+                for card in vehicle_cards:
+                    # Find the first direct child <a> tag within the card
+                    vehicle_link = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ccg-product-card-link-")]').get_attribute("href")
+                    # Find the title text within the div with class "title pb-0 text-truncate-2l"
+                    vehicle_name = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
+                    # Find vehicle subheading / subtitle
+                    vehicle_subheading = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[2]/span').text
+                    # Find the image URL from the "lazy-load-bg"
+                    image_url = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ci-img-wrapper-")]/div/div[1]/div/div[1]/img').get_attribute("src")
+                    # Find location of vehicle //*[@id="ps-cu-location-wrapper-61628702"]/p
+                    vehicle_location = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-cu-location-wrapper-")]/p').text
+                    # Find the WOVR status
+                    wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
+                    # Find cylinder count //*[@id="ps-ckf-key-features-4to6-61628702"]/div[1]/span[2]/p
+                    vehicle_cylinder = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[1]/span[2]/p').text
+                    # Find gearbox detail //*[@id="ps-ckf-key-features-4to6-61628702"]/div[2]/span[2]/p
+                    vehicle_gearbox = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[2]/span[2]/p').text
+                    # Find vehicle kilometers (Not always valid) //*[@id="ps-ckf-key-features-1to3-61621077"]/div[1]/span[2]/p
+                    try:
+                        vehicle_odometer = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-1to3")]/div[1]/span[2]/p').text
+                    except:
+                        vehicle_odometer = "N/A odometer"
+                    # Find the auction date //*[@id="details-timezone-dropdown-61628702"]/div/time
+                    auction_date = card.find_element(By.XPATH, '//*[starts-with(@id, "details-timezone-dropdown-")]/div/time').text
+                    # Find other information (Date/KM's) //*[@id="ps-ckf-key-features-1to3-"]/div/span[2]/p
+                    wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
+                    # Append the data to the list if the link is not already present
+                    returned_vehicle_list.append({"title": vehicle_name, "subtitle": vehicle_subheading, "link": vehicle_link, "img": image_url, "location": vehicle_location, "cylinder": vehicle_cylinder, "gearbox": vehicle_gearbox, "wovr": wovr_status, "odometer": vehicle_odometer, "date": auction_date, "vendor": "Pickles"})
 
-                except Exception as e:
-                    # print(f"Error extracting aria-label: {e}")
-                    # vehicle_names.append('Error extracting aria-label')
-                    pass
+
+                # Print a message indicating data processing
+                write.console("green", "\nProcessing pickles data...")
+
+            except Exception as e:
+                write.console("red", f"\nNo results for {vehicle_make.capitalize()} on pickles...")
+                # print(e)
 
             driver.quit()
 
@@ -330,10 +355,12 @@ class search_by:
                         vehicle_odometer = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-1to3")]/div[1]/span[2]/p').text
                     except:
                         vehicle_odometer = "N/A odometer"
+                    # Find the auction date //*[@id="details-timezone-dropdown-61628702"]/div/time
+                    auction_date = card.find_element(By.XPATH, '//*[starts-with(@id, "details-timezone-dropdown-")]/div/time').text
                     # Find other information (Date/KM's) //*[@id="ps-ckf-key-features-1to3-"]/div/span[2]/p
                     wovr_status = card.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
                     # Append the data to the list if the link is not already present
-                    returned_vehicle_list.append({"title": vehicle_name, "subtitle": vehicle_subheading, "link": vehicle_link, "img": image_url, "location": vehicle_location, "cylinder": vehicle_cylinder, "gearbox": vehicle_gearbox, "wovr": wovr_status, "odometer": vehicle_odometer, "vendor": "Pickles"})
+                    returned_vehicle_list.append({"title": vehicle_name, "subtitle": vehicle_subheading, "link": vehicle_link, "img": image_url, "location": vehicle_location, "cylinder": vehicle_cylinder, "gearbox": vehicle_gearbox, "wovr": wovr_status, "odometer": vehicle_odometer, "date": auction_date, "vendor": "Pickles"})
 
 
                 # Print a message indicating data processing
