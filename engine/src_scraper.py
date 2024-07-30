@@ -9,6 +9,7 @@ import asyncio
 import logging
 import platform
 import re
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 from time import sleep
 
@@ -142,7 +143,7 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{vehicle_make}/k0c18320r10?view=gallery")
+            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{vehicle_make}/k0c18320r10?forsaleby=ownr&view=gallery")
             returned_vehicle_list = []
 
             # Suppress logging
@@ -178,10 +179,10 @@ class search_by:
                     except:
                         pass
 
-                write.console("green", "\nProcessing pickles data...")
+                write.console("green", "\nProcessing gumtree data...")
 
             except:
-                write.console("red", f"\nNo results for {vehicle_make.capitalize()} on pickles...")
+                write.console("red", f"\nNo results for {vehicle_make.capitalize()} on gumtree...")
                         
             driver.quit()
             return returned_vehicle_list
@@ -354,8 +355,9 @@ class search_by:
         async def search_gumtree(self):
             
             specific_search_clean = self.specific_search.lower()
-            specific_search = self.specific_search.replace(" ", "+")
-            write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}")
+            specific_search_split = specific_search_clean.split()
+
+            write.console("cyan", f"\nSearching gumtree for {specific_search_clean.capitalize()}...")
 
             # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
@@ -364,18 +366,37 @@ class search_by:
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
             write.line(1)
 
-            driver.get(f"https://www.gumtree.com.au/s-cars-vans-utes/{specific_search}/k0c18320r10?view=gallery")
-
+            # Construct the URL
+            if specific_search_clean[0] == 'bmw':
+                carmake = f"carmake-{specific_search_split[0]}"
+                carmodel = f"carmodel-{specific_search_split[0]}_{specific_search_split[1][0]}/variant-{specific_search_split[1][1:]}"
+                url = f"https://www.gumtree.com.au/s-cars-vans-utes/brisbane/{carmake}/{carmodel}/c18320l3005721?forsaleby=ownr&view=gallery"
+            else:
+                carmake = f"carmake-{specific_search_split[0]}"
+                carmodel = f"carmodel-{specific_search_split[0]}_{specific_search_split[1]}"
+                url = f"https://www.gumtree.com.au/s-cars-vans-utes/brisbane/{carmake}/{carmodel}/c18320l3005721?forsaleby=ownr&view=gallery"
+            
+            # Fetch the page
+            driver.get(url)
+            
             returned_vehicle_list = []
 
             # Suppress logging
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
             try:
+                # Check if the URL has changed, indicating no results
+                if driver.current_url != url:
+                    write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on gumtree...")
+                    driver.quit()
+                    return []
+                print("Passed url test")
+
                 # Wait until the parent element is present
                 parent_element = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[3]/div/div[2]/main/section/div[2]/div'))
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[2]/div/div[2]/main/section/div[1]/div'))
                 )
+                print("Passed initial check")
                 
                 # Find all 'a' elements that are children of the parent element
                 child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
@@ -395,17 +416,26 @@ class search_by:
                         vehicle_location = parts[2].strip().replace("Location: ", "")
                         time_listed = parts[3].strip().replace("Ad listed ", "")
                         
-
-                        returned_vehicle_list.append({"title": vehicle_name, "price": vehicle_price, "link": vehicle_link, "img": image_url, "location": vehicle_location, "date": time_listed, "vendor": "Gumtree"})
-                    
-                    except:
+                        returned_vehicle_list.append({
+                            "title": vehicle_name,
+                            "price": vehicle_price,
+                            "link": vehicle_link,
+                            "img": image_url,
+                            "location": vehicle_location,
+                            "date": time_listed,
+                            "vendor": "Gumtree"
+                        })
+                    except NoSuchElementException as e:
                         pass
 
-                write.console("green", "\nProcessing pickles data...")
+                write.console("green", "\nProcessing gumtree data...")
 
-            except:
-                write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on pickles...")
-                        
+            except TimeoutException as e:
+                write.console("red", f"\n1 No results for {specific_search_clean.capitalize()} on gumtree...")
+
+            except NoSuchElementException as e:
+                write.console("red", f"\n2 No results for {specific_search_clean.capitalize()} on gumtree...")
+
             driver.quit()
             return returned_vehicle_list
 

@@ -16,7 +16,6 @@ Gumtree engine update 0.0.3
 Refer to `Test.py` for example usage
 
 ### For easy individual assignment of a worker/crawler for research
-
 Step 1. Declare to initialise the worker `worker = src_scraper.search_by.vehicle_brand("BMW")`
 
 Step 2. Deploy and store worker's efforts `bmw_vehicles = await worker.search_pickles()`
@@ -24,7 +23,6 @@ Step 2. Deploy and store worker's efforts `bmw_vehicles = await worker.search_pi
 Explaination: Worker will search by brand type 'BMW' on 'Pickles' and return data as 'bmw_vehicles'
 
 ### To scheduled a worker
-
 Step 1. Append all desired both `brand` and `specific` type vehicles to `vehicles.txt` in existing format
 
 Step 2. Get and change `url` in `webhook_handler.py` to your custom webhook address

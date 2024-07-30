@@ -6,7 +6,8 @@ import asyncio
 
 async def test():
     search = src.search_by.vehicle_brand("BMW")
-    await search.search_gumtree()
+    result = await search.search_gumtree()
+    print(result)
     
 
 if __name__ == "__main__":
