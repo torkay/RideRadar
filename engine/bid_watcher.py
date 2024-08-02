@@ -4,16 +4,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from datetime import datetime
 from utils import *
-from bs4 import BeautifulSoup
 import asyncio
-import logging
-import platform
-import re
-import tracemalloc
-
-tracemalloc.start()
 
 class watch:
     class bid:

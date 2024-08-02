@@ -10,7 +10,7 @@ import platform
 from selenium import webdriver
 from selenium.common.exceptions import SessionNotCreatedException
 
-version = "0.0.3"
+version = "0.0.4"
 
 class write:
     def console(color, text: str):

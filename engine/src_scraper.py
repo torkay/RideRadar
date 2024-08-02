@@ -4,11 +4,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 from utils import *
 import asyncio
 import logging
 import platform
 import re
+import math
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 from time import sleep
@@ -412,58 +414,62 @@ class search_by:
             # Suppress logging
             logging.getLogger('selenium').setLevel(logging.WARNING)
 
+            # Check if the URL has changed, indicating no results
+            if driver.current_url != url:
+                write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on gumtree...")
+                # print("Did not pass url test")
+                driver.quit()
+                return []
+            else:
+                # print("Passed url test")
+                pass
+
+            print(url)
+
             try:
-                # Check if the URL has changed, indicating no results
-                if driver.current_url != url:
-                    write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on gumtree...")
-                    # print("Did not pass url test")
-                    driver.quit()
-                    return []
-                else:
-                    # print("Passed url test")
-                    pass
-
-                # sleep(15)
-
                 # Wait until the parent element is present
-                parent_element = WebDriverWait(driver, 5).until(
+                WebDriverWait(driver, 5).until(
                     # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
                     # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
                     # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
                     # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div'))
+                    # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div'))
                 )
-                print("Passed initial check")
-                
+
+                parent_element = driver.find_element(By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div')
+
+                WebDriverWait(driver,5).until(
+                    EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
+                )
+
                 # Find all 'a' elements that are children of the parent element
                 child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
                 
                 # Iterate over each child element
                 for child in child_elements:
-                    try:
-                        # Extract necessary information from each child element
-                        vehicle_link = child.get_attribute('href')
-                        aria_label = child.get_attribute('aria-label')
-                        image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
-                        
-                        # Split the aria-label to extract individual pieces of information
-                        parts = aria_label.split(".")
-                        vehicle_name = parts[0].strip()
-                        vehicle_price = parts[1].strip().replace("Price: ", "")
-                        vehicle_location = parts[2].strip().replace("Location: ", "")
-                        time_listed = parts[3].strip().replace("Ad listed ", "")
-                        
-                        returned_vehicle_list.append({
-                            "title": vehicle_name,
-                            "price": vehicle_price,
-                            "link": vehicle_link,
-                            "img": image_url,
-                            "location": vehicle_location,
-                            "date": time_listed,
-                            "vendor": "Gumtree"
-                        })
-                    except NoSuchElementException as e:
-                        pass
+                    # Extract necessary information from each child element
+                    vehicle_link = child.get_attribute('href')
+                    aria_label = child.get_attribute('aria-label')
+                    image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
+                    
+                    # Split the aria-label to extract individual pieces of information
+                    parts = aria_label.split(".")
+                    vehicle_name = parts[0].strip()
+                    vehicle_price = parts[1].strip().replace("Price: ", "")
+                    vehicle_location = parts[2].strip().replace("Location: ", "")
+                    time_listed = parts[3].strip().replace("Ad listed ", "")
+                    
+                    returned_vehicle_list.append({
+                        "title": vehicle_name,
+                        "price": vehicle_price,
+                        "link": vehicle_link,
+                        "img": image_url,
+                        "location": vehicle_location,
+                        "date": time_listed,
+                        "vendor": "Gumtree"
+                    })
+
 
                 write.console("green", "\nProcessing gumtree data...")
 
@@ -564,6 +570,265 @@ class search_by:
     async def vehicle_model(brand, model):
         await vehicle_brand(brand, True)
         pass
+
+class mass:
+    class scrape:
+        ''' Asynchronous web worker initialization
+        Worker -> (manheim, pickles, gumtree)
+        '''
+
+        def __init__(self, specific_search=None):
+            self.specific_search = specific_search
+            
+            # Set Chrome options for headless mode and suppress logging
+            self.chrome_options = Options()
+            self.chrome_options.add_argument("--headless")
+            self.chrome_options.add_argument("--window-size=1920,1080")
+            self.chrome_options.add_argument("--disable-gpu")
+            self.chrome_options.add_argument("--no-sandbox")
+            self.chrome_options.add_argument("--disable-dev-shm-usage")
+            self.chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            self.chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+            # Setup ChromeDriver
+            self.service = Service(ChromeDriverManager().install())
+
+        class manheim:
+            def __init__(self, parent):
+                self.parent = parent
+
+            async def assign(self):
+                self.driver = webdriver.Chrome(service=self.parent.service, options=self.parent.chrome_options)
+
+                '''
+                    Discover page iterable
+                '''
+                try:
+                    self.driver.get('https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&CategoryCode=13&PageNumber=1&RecordsPerPage=120&searchType=Z&page=1')
+                    # Find total listing amount element
+                    WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]'))
+                    )
+                    _yield = self.driver.find_element(By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]').text
+                    self.net_vehicles = _yield
+                    _yield = int(_yield)/120
+                    # Find page round count
+                    self.pages = math.ceil(_yield)
+                
+                finally:
+                    write.console("green", f"Manheim begining work on {self.pages} pages and {self.net_vehicles} vehicles.")
+
+                '''
+                    Iterate worker through listings
+                '''
+                try:
+                    # Iterate over pages and navigate to each URL
+                    for i in range(self.pages):
+                        # Await first listing to load
+                        WebDriverWait(self.driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH, '//*[@id="result-Container"]/section/ul/li[1]'))
+                        )
+
+                        # Find all listings on the current page
+                        listings = self.driver.find_elements(By.XPATH, '//*[@id="result-Container"]/section/ul/li')
+
+                        # Use relative XPath to find the title within the current listing element
+                        for index, listing in enumerate(listings):
+                            try:
+                                title = listing.find_element(By.XPATH, './/div[2]/div[2]/div[1]/div[1]/a/h2').text
+                            except NoSuchElementException:
+                                title = None
+
+                            try:
+                                location = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[1]/div[1]/div/span/span[3]').text
+                            except NoSuchElementException:
+                                location = None
+
+                            try:
+                                odometer = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[1]/div[2]').text
+                            except NoSuchElementException:
+                                odometer = None
+
+                            try:
+                                transmission = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[3]/div[2]').text
+                            except NoSuchElementException:
+                                transmission = None
+
+                            try:
+                                body = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[5]/div[2]').text
+                            except NoSuchElementException:
+                                body = None
+
+                            try:
+                                wovr = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[7]/div[2]').text
+                            except NoSuchElementException:
+                                wovr = None
+
+                            try:
+                                colour = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[2]/div[2]').text
+                            except NoSuchElementException:
+                                colour = None
+
+                            try:
+                                engine = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[4]/div[2]').text
+                            except NoSuchElementException:
+                                engine = None
+
+                            try:
+                                fuel = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[6]/div[2]').text
+                            except NoSuchElementException:
+                                fuel = None
+
+                            try:
+                                start = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[1]/div[1]/div/p').text
+                            except NoSuchElementException:
+                                start = None
+                                
+                            # Process the gathered information
+                            print(f"Title: {title}")
+                            print(f"Location: {location}")
+                            print(f"Odometer: {odometer}")
+                            print(f"Transmission: {transmission}")
+                            print(f"Body: {body}")
+                            print(f"WOVR: {wovr}")
+                            print(f"Colour: {colour}")
+                            print(f"Engine: {engine}")
+                            print(f"Fuel: {fuel}")
+                            print(f"Start: {start}")
+                            print("------------")
+
+                        # Load next page
+                        write.console("yellow", "Loading next page.")
+                        self.driver.get(f'https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&CategoryCode=13&PageNumber={i+1}&RecordsPerPage=120&searchType=P&')
+                        
+                except Exception as e:
+                    # Print exception details if something goes wrong
+                    write.console("red", f"Something went wrong: {e}")
+
+                finally:
+                    if self.driver:
+                        self.driver.quit()
+
+        class pickles:
+            def __init__(self, parent):
+                self.parent = parent
+
+            async def assign(self):
+                self.driver = webdriver.Chrome(service=self.parent.service, options=self.parent.chrome_options)
+
+                '''
+                    Discover page iterable
+                '''
+                try:
+                    self.driver.get('https://www.pickles.com.au/used/search/lob/salvage/cars?page=1&limit=120&sort=titleSort+asc%2C+year+desc')
+                    # Find total listing amount element
+                    WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="ps-ht-search-header-container"]/header/h1'))
+                    )
+                    _yield = self.driver.find_element(By.XPATH, '//*[@id="ps-ht-search-header-container"]/header/h1').text
+                    _yield = _yield.split()
+                    self.net_vehicles = int(_yield[0].replace(',', ''))  # Ensure this is an integer
+                    _yield = int(self.net_vehicles)/120
+                    print(_yield, type(_yield))
+                    # Find page round count
+                    self.pages = math.ceil(_yield)
+                    print(self.pages, self.net_vehicles)
+                
+                finally:
+                    write.console("green", f"Pickles begining work on {self.pages} pages and {self.net_vehicles} vehicles.")
+                
+                '''
+                    Iterate worker through listings
+                '''
+                try:
+                    # Iterate over pages and navigate to each URL
+                    for i in range(self.pages):
+                        # Await first listing to load
+                        WebDriverWait(self.driver, 5).until(
+                            EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
+                        )
+
+                        # Find all listings on the current page
+                        listings = self.driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
+
+                        # Use relative XPath to find the title within the current listing element
+                        for index, listing in enumerate(listings):
+                            try:
+                                title = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
+                            except NoSuchElementException:
+                                title = None
+
+                            try:
+                                subtitle = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[2]/span').text
+                            except NoSuchElementException:
+                                subtitle = None
+
+                            try:
+                                odometer = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ckf-key-features-1to3")]/div[1]/span[2]/p').text
+                            except NoSuchElementException:
+                                odometer = None
+                            
+                            try:
+                                engine = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[1]/span[2]/p').text
+                            except NoSuchElementException:
+                                engine = None
+
+                            try:
+                                transmission = listing.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[2]/span[2]/p').text
+                            except NoSuchElementException:
+                                transmission = None
+
+                            try:
+                                wovr = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
+                            except NoSuchElementException:
+                                wovr = None
+
+                            try:
+                                location = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-cu-location-wrapper-")]/p').text
+                            except NoSuchElementException:
+                                location = None
+
+                            try:
+                                time = listing.find_element(By.XPATH, './/*[starts-with(@id, "details-timezone-dropdown-")]/div/time').text
+                            except NoSuchElementException:
+                                time = None
+
+                            # Process the gathered information
+                            print(f"Title: {title}")
+                            print(f"Subtitle: {subtitle}")
+                            print(f"Odometer: {odometer}")
+                            print(f"Engine: {engine}")
+                            print(f"Transmission: {transmission}")
+                            print(f"WOVR: {wovr}")
+                            print(f"Location: {location}")
+                            print(f"Time: {time}")
+                            print("------------")
+
+                            
+                            # Load next page
+                        write.console("yellow", "Loading next page.")
+                        self.driver.get(f'https://www.pickles.com.au/used/search/lob/salvage/cars?page={i+1}&limit=120&sort=titleSort+asc%2C+year+desc')
+                            
+                except:
+                    pass
+                
+                '''
+                //*[@id="product-search-id"]/div/div[1]
+                //*[@id="product-search-id"]/div/div[2]
+                //*[@id="product-search-id"]/div/div[120]
+
+                //*[@id="ps-ct-title-wrapper-61645012"]/header/h2[1]/span
+                //*[@id="ps-ct-title-wrapper-61633192"]/header/h2[1]/span
+
+                //*[@id="ps-ckf-key-features-1and2-61645012"]/div/span[2]/p
+                //*[@id="ps-ckf-key-features-1and2-61633192"]/div[1]/span[2]/p
+                //*[@id="ps-ckf-key-features-1and2-61615406"]/div/span[2]/p
+                //*[@id="ps-ckf-key-features-1and2-61638412"]/div/span[2]/p
+                '''
+
+                
+                        
+                        
 
 async def request(function_name, *args, **kwargs):
     search_result = await search_by.search_by_brand(*args)  # Store the result in a separate variable
