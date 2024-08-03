@@ -32,12 +32,12 @@ async def main():
         elapsed_time = end_time - start_time
         formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
 
-        next_run_time = time.time() + (1 * 0 * 1)  # 3 hours from now
+        next_run_time = time.time() + (((60)*60)*24)  # 3 hours from now
         formatted_next_run_time = time.strftime("%I:%M%p %m/%d/%y", time.localtime(next_run_time))
         write.line(space=True, override=True)
         write.console("white", f"Worker completed search | Time elapsed: {formatted_elapsed_time} | Waiting until {formatted_next_run_time}")
         write.line(override=True)
-        await asyncio.sleep(((1)*1)*1)  # Wait 12 hours before the next run
+        await asyncio.sleep(((60)*60)*24)  # Wait 12 hours before the next run
         write.console('white', f"Started RideRadar server instance: version {version}")
 
 
