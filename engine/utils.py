@@ -66,7 +66,7 @@ class find:
             return "/Users/torrinkay/Desktop/RideRadar/RideRadar/engine/vehicles.txt"
         elif os == "Linux":
             write.console("green", "Linux platform detected")
-            return "vehicles.txt" #TODO figure this out as well
+            return "/home/runner/work/RideRadar/RideRadar/engine/vehicles.txt"
         else:
             logging.error("OS not identified: Check utils chromedriver declaration")
 
