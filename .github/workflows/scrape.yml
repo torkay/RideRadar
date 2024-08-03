@@ -1,7 +1,8 @@
-name: Run Schedule Loop
+name: Run Schedule
 
 on:
-  workflow_dispatch:  # Allows you to manually trigger the workflow from the GitHub Actions UI
+  schedule:
+    - cron: '0 0 * * *'  # Runs at midnight UTC every day (adjust as needed)
 
 jobs:
   scrape:
@@ -9,9 +10,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: List files
-        run: ls -R
 
       - name: Set up Python
         uses: actions/setup-python@v4

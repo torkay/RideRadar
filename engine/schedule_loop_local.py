@@ -19,20 +19,27 @@ async def run_handler():
     if find.server_os() == 'windows':
         os.system(f"title RideRadar: Scheduler (DO NOT CLOSE)")
     await process_vehicles(file_path)
-
+    
 async def main():
-    ''' Run the handler once without looping '''
+    ''' Future scale TODO: on rate request limit acquire iterable ip addresses or variable sleep timer '''
     
-    start_time = time.time()
-    await run_handler()
-    end_time = time.time()
+    # Infinite loop to run the scheduler
+    while True:
+        start_time = time.time()
+        await run_handler()
+        end_time = time.time()
 
-    elapsed_time = end_time - start_time
-    formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-    
-    write.line(space=True, override=True)
-    write.console("white", f"Worker completed search | Time elapsed: {formatted_elapsed_time}")
-    write.line(override=True)
+        elapsed_time = end_time - start_time
+        formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+
+        next_run_time = time.time() + (((60)*60)*24)  # 3 hours from now
+        formatted_next_run_time = time.strftime("%I:%M%p %m/%d/%y", time.localtime(next_run_time))
+        write.line(space=True, override=True)
+        write.console("white", f"Worker completed search | Time elapsed: {formatted_elapsed_time} | Waiting until {formatted_next_run_time}")
+        write.line(override=True)
+        await asyncio.sleep(((60)*60)*24)  # Wait 12 hours before the next run
+        write.console('white', f"Started RideRadar server instance: version {version}")
+
 
 def run_scheduler():
     if find.server_os() == 'windows':
@@ -44,3 +51,4 @@ def run_scheduler():
 
 if __name__ == "__main__":
     run_scheduler()
+    
