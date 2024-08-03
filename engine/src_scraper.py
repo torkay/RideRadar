@@ -812,19 +812,6 @@ class mass:
                 except:
                     pass
                 
-                '''
-                //*[@id="product-search-id"]/div/div[1]
-                //*[@id="product-search-id"]/div/div[2]
-                //*[@id="product-search-id"]/div/div[120]
-
-                //*[@id="ps-ct-title-wrapper-61645012"]/header/h2[1]/span
-                //*[@id="ps-ct-title-wrapper-61633192"]/header/h2[1]/span
-
-                //*[@id="ps-ckf-key-features-1and2-61645012"]/div/span[2]/p
-                //*[@id="ps-ckf-key-features-1and2-61633192"]/div[1]/span[2]/p
-                //*[@id="ps-ckf-key-features-1and2-61615406"]/div/span[2]/p
-                //*[@id="ps-ckf-key-features-1and2-61638412"]/div/span[2]/p
-                '''
 
                 
                         
