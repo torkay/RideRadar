@@ -31,16 +31,16 @@ class write:
             reset_code = colors['reset']
             print(color_code + text + reset_code)
         else:
-            logging.error("Error occured during coloring console: Invalid Color")
+            logging.error("Error occurred during coloring console: Invalid Color")
 
     def line(space=None, override=None):
         # For whatever reason, verbose chromedriver logs are windows exclusive
         if find.server_os == 'windows' or override:
-            seperator = "================================================================================================"
+            separator = "================================================================================"
             if space == None:
-                write.console("white", seperator)
+                write.console("white", separator)
             else:
-                write.console("white", f"\n{seperator}")
+                write.console("white", f"\n{separator}")
         else:
             pass
 

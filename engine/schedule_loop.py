@@ -21,7 +21,7 @@ async def run_handler():
     await process_vehicles(file_path)
     
 async def main():
-    ''' Future scale TODO: on rate request limit acquire iteratable ip addresses or variable sleep timer '''
+    ''' Future scale TODO: on rate request limit acquire iterable ip addresses or variable sleep timer '''
     
     # Infinite loop to run the scheduler
     while True:
@@ -32,18 +32,23 @@ async def main():
         elapsed_time = end_time - start_time
         formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
 
-        next_run_time = time.time() + (60 * 60 * 3)  # 3 hours from now
+        next_run_time = time.time() + (1 * 0 * 1)  # 3 hours from now
         formatted_next_run_time = time.strftime("%I:%M%p %m/%d/%y", time.localtime(next_run_time))
         write.line(space=True, override=True)
         write.console("white", f"Worker completed search | Time elapsed: {formatted_elapsed_time} | Waiting until {formatted_next_run_time}")
         write.line(override=True)
-        await asyncio.sleep(((60)*60)*12)  # Wait 12 hours before the next run
+        await asyncio.sleep(((1)*1)*1)  # Wait 12 hours before the next run
         write.console('white', f"Started RideRadar server instance: version {version}")
 
-if __name__ == "__main__":
+
+def run_scheduler():
     if find.server_os() == 'windows':
         set_cmd_title("Warning - Do Not Close")
     write.line(space=True, override=True)
     write.console('white', f"Started RideRadar server instance: version {version}")
     write.line(override=True)
     asyncio.run(main())
+
+if __name__ == "__main__":
+    run_scheduler()
+    

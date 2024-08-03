@@ -26,7 +26,7 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
         current_data = await search.search_by_brand()  # Call the correct method here
 
     # Save the current data to the file with indentation and separators
-    with open(DATA_FILE, 'a') as file:
+    with open(DATA_FILE, 'w') as file:
         json.dump(current_data, file, indent=4, separators=(',', ': '))
 
 

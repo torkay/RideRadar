@@ -1,0 +1,10 @@
+name: Run Schedule
+
+on:
+  schedule:
+    - cron: '*/3 * * * *'
+
+jobs:
+  - name: RideRadar Scheduler
+    schedule: "*/12 * * * *"  # Run every 12 hours
+    command: "python schedule_loop.py"
