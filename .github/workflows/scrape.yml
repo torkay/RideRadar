@@ -1,24 +1,24 @@
-name: Run Schedule
+name: Run Schedule Loop
 
 on:
-  schedule:
-    - cron: '*/3 * * * *'
+  workflow_dispatch:  # Allows you to manually trigger the workflow from the GitHub Actions UI
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
+        
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-
+        
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
-      - name: Run scraper
-        run: python scraper.py
+        
+      - name: Run schedule loop
+        run: python engine/schedule_loop.py
