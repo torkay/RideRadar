@@ -5,6 +5,20 @@ on:
     - cron: '*/3 * * * *'
 
 jobs:
-  - name: RideRadar Scheduler
-    schedule: "*/12 * * * *"  # Run every 12 hours
-    command: "python schedule_loop.py"
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run scraper
+        run: python scraper.py
