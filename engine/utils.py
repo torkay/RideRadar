@@ -80,6 +80,7 @@ class create:
             try:
                 if chrome_options == None:
                     os = platform.system()
+                    machine_type = platform.machine()
                     # Set the chromedriver_path based on the operating system
                     if os == "Windows":
                         chrome_options = "chromedriver.exe"
@@ -89,12 +90,18 @@ class create:
                         chrome_options = "/Users/torrinkay/Documents/RideRadar/chromedriver-arm64.app"
                     elif os == "Linux":
                         write.console("green", "Linux platform detected")
-                        chrome_options = "chromedriver"
+                        if machine_type == 'x86_64':
+                            chrome_options = "chromedriver"
+                        elif machine_type in ['aarch64', 'arm64']:
+                            chrome_options = "home/tor/runner/work/rideradar/rideradar/engine/chromedriver"
+                        else:
+                            write.console("red", f"The operating system Linux and the architecture is {machine_type} not supported.")
+                        
                     else:
                         logging.error("OS not identified: Check utils chromedriver declaration")
 
                 service = Service(ChromeDriverManager().install())
-                driver = webdriver.Chrome(service=service)
+                driver = webdriver.Chrome(service=service, options=chrome_options)
                 return driver
             
             except SessionNotCreatedException as e:
