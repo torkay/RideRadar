@@ -8,6 +8,9 @@ from bs4 import BeautifulSoup
 import platform
 
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
 from selenium.common.exceptions import SessionNotCreatedException
 
 version = "0.0.4"
@@ -90,7 +93,8 @@ class create:
                     else:
                         logging.error("OS not identified: Check utils chromedriver declaration")
 
-                driver = webdriver.Chrome(service=service, options=chrome_options)
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service)
                 return driver
             
             except SessionNotCreatedException as e:
