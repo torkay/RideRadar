@@ -14,9 +14,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import SessionNotCreatedException
 
 version = "0.0.4"
+verbose = False
 
 class write:
-    def console(color, text: str):
+    def console(color, text: str, override=False):
         colors = {
             'black': '\033[30m',
             'red': '\033[31m',
@@ -32,7 +33,8 @@ class write:
         if color.lower() in colors:
             color_code = colors[color.lower()]
             reset_code = colors['reset']
-            print(color_code + text + reset_code)
+            if verbose or override:
+                print(color_code + text + reset_code)
         else:
             logging.error("Error occurred during coloring console: Invalid Color")
 

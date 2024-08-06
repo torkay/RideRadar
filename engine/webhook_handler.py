@@ -100,7 +100,6 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
         write.console("green", "New embeds sent.")
         return True
     else:
-        print(f"{Fore.GREEN}")
         write.console("yellow", "No new data found.")
         write.console("yellow", "No embeds sent.")
         return False

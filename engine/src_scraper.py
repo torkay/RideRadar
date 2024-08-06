@@ -72,11 +72,11 @@ class search_by:
                 for card in vehicle_cards:
                     # Main details
                     vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
-                    # print(vehicle_name)
+                    # write.console('white', vehicle_name)
                     vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
-                    # print(vehicle_link)
+                    # write.console('white', vehicle_link)
                     vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
-                    # print(vehicle_img)
+                    # write.console('white', vehicle_img)
 
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
                     
@@ -157,11 +157,11 @@ class search_by:
                 # Check if the URL has changed, indicating no results
                 if driver.current_url != url:
                     write.console("red", f"\nNo results for {vehicle_make.capitalize()} on gumtree...")
-                    # print("Did not pass url test")
+                    # write.console('white', "Did not pass url test")
                     driver.quit()
                     return []
                 else:
-                    # print("Passed url test")
+                    # write.console('white', "Passed url test")
                     pass
 
                 # sleep(15)
@@ -174,7 +174,7 @@ class search_by:
                     # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
                     EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div'))
                 )
-                print("Passed initial check")
+                write.console('white', "Passed initial check")
                 
                 # Find all 'a' elements that are children of the parent element
                 child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
@@ -297,11 +297,11 @@ class search_by:
                 for card in vehicle_cards:
                     # Main details
                     vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
-                    # print(vehicle_name)
+                    # write.console('white', vehicle_name)
                     vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
-                    # print(vehicle_link)
+                    # write.console('white', vehicle_link)
                     vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
-                    # print(vehicle_img)
+                    # write.console('white', vehicle_img)
 
                     returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
                     
@@ -377,7 +377,7 @@ class search_by:
 
             except Exception as e:
                 write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on pickles...")
-                # print(e)
+                # write.console('white', e)
 
             driver.quit()
             return returned_vehicle_list
@@ -417,14 +417,14 @@ class search_by:
             # Check if the URL has changed, indicating no results
             if driver.current_url != url:
                 write.console("red", f"\nNo results for {specific_search_clean.capitalize()} on gumtree...")
-                # print("Did not pass url test")
+                # write.console('white', "Did not pass url test")
                 driver.quit()
                 return []
             else:
-                # print("Passed url test")
+                # write.console('white', "Passed url test")
                 pass
 
-            print(url)
+            write.console('white', url)
 
             try:
                 # Wait until the parent element is present
@@ -532,7 +532,7 @@ class search_by:
                     
 
                 except Exception as e:
-                    # print(f"Error extracting aria-label: {e}")
+                    # write.console('white', f"Error extracting aria-label: {e}")
                     # vehicle_names.append('Error extracting aria-label')
                     pass
 
@@ -685,17 +685,17 @@ class mass:
                                 start = None
                                 
                             # Process the gathered information
-                            print(f"Title: {title}")
-                            print(f"Location: {location}")
-                            print(f"Odometer: {odometer}")
-                            print(f"Transmission: {transmission}")
-                            print(f"Body: {body}")
-                            print(f"WOVR: {wovr}")
-                            print(f"Colour: {colour}")
-                            print(f"Engine: {engine}")
-                            print(f"Fuel: {fuel}")
-                            print(f"Start: {start}")
-                            print("------------")
+                            write.console('white', f"Title: {title}")
+                            write.console('white', f"Location: {location}")
+                            write.console('white', f"Odometer: {odometer}")
+                            write.console('white', f"Transmission: {transmission}")
+                            write.console('white', f"Body: {body}")
+                            write.console('white', f"WOVR: {wovr}")
+                            write.console('white', f"Colour: {colour}")
+                            write.console('white', f"Engine: {engine}")
+                            write.console('white', f"Fuel: {fuel}")
+                            write.console('white', f"Start: {start}")
+                            write.console('white', "------------")
 
                         # Load next page
                         write.console("yellow", "Loading next page.")
@@ -729,10 +729,10 @@ class mass:
                     _yield = _yield.split()
                     self.net_vehicles = int(_yield[0].replace(',', ''))  # Ensure this is an integer
                     _yield = int(self.net_vehicles)/120
-                    print(_yield, type(_yield))
+                    write.console('white', _yield, type(_yield))
                     # Find page round count
                     self.pages = math.ceil(_yield)
-                    print(self.pages, self.net_vehicles)
+                    write.console('white', self.pages, self.net_vehicles)
                 
                 finally:
                     write.console("green", f"Pickles begining work on {self.pages} pages and {self.net_vehicles} vehicles.")
@@ -794,15 +794,15 @@ class mass:
                                 time = None
 
                             # Process the gathered information
-                            print(f"Title: {title}")
-                            print(f"Subtitle: {subtitle}")
-                            print(f"Odometer: {odometer}")
-                            print(f"Engine: {engine}")
-                            print(f"Transmission: {transmission}")
-                            print(f"WOVR: {wovr}")
-                            print(f"Location: {location}")
-                            print(f"Time: {time}")
-                            print("------------")
+                            write.console('white', f"Title: {title}")
+                            write.console('white', f"Subtitle: {subtitle}")
+                            write.console('white', f"Odometer: {odometer}")
+                            write.console('white', f"Engine: {engine}")
+                            write.console('white', f"Transmission: {transmission}")
+                            write.console('white', f"WOVR: {wovr}")
+                            write.console('white', f"Location: {location}")
+                            write.console('white', f"Time: {time}")
+                            write.console('white', "------------")
 
                             
                             # Load next page
@@ -812,10 +812,7 @@ class mass:
                 except:
                     pass
                 
-
-                
-                        
-                        
+                                     
 
 async def request(function_name, *args, **kwargs):
     search_result = await search_by.search_by_brand(*args)  # Store the result in a separate variable
