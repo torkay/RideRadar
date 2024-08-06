@@ -13,7 +13,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from selenium.common.exceptions import SessionNotCreatedException
 
-version = "0.0.4"
+version = "0.0.5"
 verbose = False
 
 class write:
