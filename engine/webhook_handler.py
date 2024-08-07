@@ -2,7 +2,7 @@ import discord
 from discord import Webhook
 import aiohttp
 import json
-from src_scraper import search_by, request
+from scraper.src_scraper import search_by, request
 import asyncio
 from colorama import init, Fore, Style
 import time

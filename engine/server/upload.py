@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-import engine.src_scraper as scraper  # Import your scraper code
+import engine.scraper.src_scraper as scraper  # Import your scraper code
 
 # Connect to MongoDB Atlas
 client = MongoClient("mongodb+srv://<username>:<password>@cluster0.mongodb.net/myFirstDatabase?retryWrites=true&w=majority")

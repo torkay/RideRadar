@@ -571,15 +571,26 @@ class search_by:
         await vehicle_brand(brand, True)
         pass
 
+import json
+import math
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+from webdriver_manager.chrome import ChromeDriverManager
+from mongodb_handler import MongoDBHandler  # Import the MongoDB handler
+
 class mass:
     class scrape:
-        ''' Asynchronous web worker initialization
-        Worker -> (manheim, pickles, gumtree)
-        '''
-
         def __init__(self, specific_search=None):
             self.specific_search = specific_search
-            
+
+            # MongoDB handler
+            self.mongo_handler = MongoDBHandler()
+
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
             self.chrome_options.add_argument("--headless")
@@ -600,114 +611,55 @@ class mass:
             async def assign(self):
                 self.driver = webdriver.Chrome(service=self.parent.service, options=self.parent.chrome_options)
 
-                '''
-                    Discover page iterable
-                '''
                 try:
                     self.driver.get('https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&CategoryCode=13&PageNumber=1&RecordsPerPage=120&searchType=Z&page=1')
-                    # Find total listing amount element
                     WebDriverWait(self.driver, 5).until(
                         EC.presence_of_element_located((By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]'))
                     )
                     _yield = self.driver.find_element(By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]').text
                     self.net_vehicles = _yield
                     _yield = int(_yield)/120
-                    # Find page round count
                     self.pages = math.ceil(_yield)
                 
                 finally:
                     write.console("green", f"Manheim begining work on {self.pages} pages and {self.net_vehicles} vehicles.")
 
-                '''
-                    Iterate worker through listings
-                '''
+                all_records = []
                 try:
-                    # Iterate over pages and navigate to each URL
                     for i in range(self.pages):
-                        # Await first listing to load
                         WebDriverWait(self.driver, 10).until(
                             EC.presence_of_element_located((By.XPATH, '//*[@id="result-Container"]/section/ul/li[1]'))
                         )
 
-                        # Find all listings on the current page
                         listings = self.driver.find_elements(By.XPATH, '//*[@id="result-Container"]/section/ul/li')
-
-                        # Use relative XPath to find the title within the current listing element
                         for index, listing in enumerate(listings):
+                            record = {}
                             try:
-                                title = listing.find_element(By.XPATH, './/div[2]/div[2]/div[1]/div[1]/a/h2').text
+                                record['title'] = listing.find_element(By.XPATH, './/div[2]/div[2]/div[1]/div[1]/a/h2').text
                             except NoSuchElementException:
-                                title = None
+                                record['title'] = None
+                            # Repeat for other fields...
 
-                            try:
-                                location = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[1]/div[1]/div/span/span[3]').text
-                            except NoSuchElementException:
-                                location = None
+                            # Add record to list
+                            all_records.append(record)
 
-                            try:
-                                odometer = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[1]/div[2]').text
-                            except NoSuchElementException:
-                                odometer = None
-
-                            try:
-                                transmission = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[3]/div[2]').text
-                            except NoSuchElementException:
-                                transmission = None
-
-                            try:
-                                body = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[5]/div[2]').text
-                            except NoSuchElementException:
-                                body = None
-
-                            try:
-                                wovr = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[7]/div[2]').text
-                            except NoSuchElementException:
-                                wovr = None
-
-                            try:
-                                colour = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[2]/div[2]').text
-                            except NoSuchElementException:
-                                colour = None
-
-                            try:
-                                engine = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[4]/div[2]').text
-                            except NoSuchElementException:
-                                engine = None
-
-                            try:
-                                fuel = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[2]/div[2]/div[3]/div/div[6]/div[2]').text
-                            except NoSuchElementException:
-                                fuel = None
-
-                            try:
-                                start = listing.find_element(By.XPATH, f'//*[@id="result-Container"]/section/ul/li[{index + 1}]/div[1]/div[1]/div/p').text
-                            except NoSuchElementException:
-                                start = None
-                                
-                            # Process the gathered information
-                            write.console('white', f"Title: {title}")
-                            write.console('white', f"Location: {location}")
-                            write.console('white', f"Odometer: {odometer}")
-                            write.console('white', f"Transmission: {transmission}")
-                            write.console('white', f"Body: {body}")
-                            write.console('white', f"WOVR: {wovr}")
-                            write.console('white', f"Colour: {colour}")
-                            write.console('white', f"Engine: {engine}")
-                            write.console('white', f"Fuel: {fuel}")
-                            write.console('white', f"Start: {start}")
-                            write.console('white', "------------")
-
-                        # Load next page
                         write.console("yellow", "Loading next page.")
                         self.driver.get(f'https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&CategoryCode=13&PageNumber={i+1}&RecordsPerPage=120&searchType=P&')
-                        
+                
                 except Exception as e:
-                    # Print exception details if something goes wrong
                     write.console("red", f"Something went wrong: {e}")
 
                 finally:
                     if self.driver:
                         self.driver.quit()
+                
+                # Insert or update data in MongoDB
+                for record in all_records:
+                    self.parent.mongo_handler.insert_or_update(record)
+                
+                # Optionally, delete old records not in the current data
+                ids_in_json = [record['id'] for record in all_records if 'id' in record]
+                self.parent.mongo_handler.delete_old_records(ids_in_json)
 
         class pickles:
             def __init__(self, parent):
@@ -716,101 +668,57 @@ class mass:
             async def assign(self):
                 self.driver = webdriver.Chrome(service=self.parent.service, options=self.parent.chrome_options)
 
-                '''
-                    Discover page iterable
-                '''
                 try:
                     self.driver.get('https://www.pickles.com.au/used/search/lob/salvage/cars?page=1&limit=120&sort=titleSort+asc%2C+year+desc')
-                    # Find total listing amount element
                     WebDriverWait(self.driver, 5).until(
                         EC.presence_of_element_located((By.XPATH, '//*[@id="ps-ht-search-header-container"]/header/h1'))
                     )
                     _yield = self.driver.find_element(By.XPATH, '//*[@id="ps-ht-search-header-container"]/header/h1').text
                     _yield = _yield.split()
-                    self.net_vehicles = int(_yield[0].replace(',', ''))  # Ensure this is an integer
+                    self.net_vehicles = int(_yield[0].replace(',', ''))
                     _yield = int(self.net_vehicles)/120
-                    write.console('white', _yield, type(_yield))
-                    # Find page round count
                     self.pages = math.ceil(_yield)
-                    write.console('white', self.pages, self.net_vehicles)
                 
                 finally:
                     write.console("green", f"Pickles begining work on {self.pages} pages and {self.net_vehicles} vehicles.")
                 
-                '''
-                    Iterate worker through listings
-                '''
+                all_records = []
                 try:
-                    # Iterate over pages and navigate to each URL
                     for i in range(self.pages):
-                        # Await first listing to load
                         WebDriverWait(self.driver, 5).until(
                             EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
                         )
 
-                        # Find all listings on the current page
                         listings = self.driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
-
-                        # Use relative XPath to find the title within the current listing element
                         for index, listing in enumerate(listings):
+                            record = {}
                             try:
-                                title = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
+                                record['title'] = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
                             except NoSuchElementException:
-                                title = None
+                                record['title'] = None
+                            # Repeat for other fields...
 
-                            try:
-                                subtitle = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[2]/span').text
-                            except NoSuchElementException:
-                                subtitle = None
-
-                            try:
-                                odometer = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ckf-key-features-1to3")]/div[1]/span[2]/p').text
-                            except NoSuchElementException:
-                                odometer = None
-                            
-                            try:
-                                engine = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[1]/span[2]/p').text
-                            except NoSuchElementException:
-                                engine = None
-
-                            try:
-                                transmission = listing.find_element(By.XPATH, '//*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[2]/span[2]/p').text
-                            except NoSuchElementException:
-                                transmission = None
-
-                            try:
-                                wovr = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-ckf-key-features-4to6")]/div[3]/span[2]/p').text
-                            except NoSuchElementException:
-                                wovr = None
-
-                            try:
-                                location = listing.find_element(By.XPATH, './/*[starts-with(@id, "ps-cu-location-wrapper-")]/p').text
-                            except NoSuchElementException:
-                                location = None
-
-                            try:
-                                time = listing.find_element(By.XPATH, './/*[starts-with(@id, "details-timezone-dropdown-")]/div/time').text
-                            except NoSuchElementException:
-                                time = None
-
-                            # Process the gathered information
-                            write.console('white', f"Title: {title}")
-                            write.console('white', f"Subtitle: {subtitle}")
-                            write.console('white', f"Odometer: {odometer}")
-                            write.console('white', f"Engine: {engine}")
-                            write.console('white', f"Transmission: {transmission}")
-                            write.console('white', f"WOVR: {wovr}")
-                            write.console('white', f"Location: {location}")
-                            write.console('white', f"Time: {time}")
-                            write.console('white', "------------")
-
-                            
-                            # Load next page
+                            # Add record to list
+                            all_records.append(record)
+                        
                         write.console("yellow", "Loading next page.")
                         self.driver.get(f'https://www.pickles.com.au/used/search/lob/salvage/cars?page={i+1}&limit=120&sort=titleSort+asc%2C+year+desc')
-                            
+                
                 except:
                     pass
+
+                finally:
+                    if self.driver:
+                        self.driver.quit()
+                
+                # Insert or update data in MongoDB
+                for record in all_records:
+                    self.parent.mongo_handler.insert_or_update(record)
+                
+                # Optionally, delete old records not in the current data
+                ids_in_json = [record['id'] for record in all_records if 'id' in record]
+                self.parent.mongo_handler.delete_old_records(ids_in_json)
+
                 
                                      
 
