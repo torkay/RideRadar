@@ -8,7 +8,6 @@ from colorama import init, Fore, Style
 import time
 from vendor_storage import manheim, pickles, gumtree
 from utils import *
-
 init()
 
 # Define the file to save the data

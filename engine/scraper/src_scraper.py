@@ -581,7 +581,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
-from mongodb_handler import MongoDBHandler  # Import the MongoDB handler
+# from mongodb_handler import MongoDBHandler  # Import the MongoDB handler
 
 class mass:
     class scrape:
@@ -589,7 +589,7 @@ class mass:
             self.specific_search = specific_search
 
             # MongoDB handler
-            self.mongo_handler = MongoDBHandler()
+            # self.mongo_handler = MongoDBHandler()
 
             # Set Chrome options for headless mode and suppress logging
             self.chrome_options = Options()
@@ -654,12 +654,12 @@ class mass:
                         self.driver.quit()
                 
                 # Insert or update data in MongoDB
-                for record in all_records:
-                    self.parent.mongo_handler.insert_or_update(record)
+                # for record in all_records:
+                    # self.parent.mongo_handler.insert_or_update(record)
                 
                 # Optionally, delete old records not in the current data
                 ids_in_json = [record['id'] for record in all_records if 'id' in record]
-                self.parent.mongo_handler.delete_old_records(ids_in_json)
+                # self.parent.mongo_handler.delete_old_records(ids_in_json)
 
         class pickles:
             def __init__(self, parent):
@@ -712,12 +712,12 @@ class mass:
                         self.driver.quit()
                 
                 # Insert or update data in MongoDB
-                for record in all_records:
-                    self.parent.mongo_handler.insert_or_update(record)
+                # for record in all_records:
+                    # self.parent.mongo_handler.insert_or_update(record)
                 
                 # Optionally, delete old records not in the current data
                 ids_in_json = [record['id'] for record in all_records if 'id' in record]
-                self.parent.mongo_handler.delete_old_records(ids_in_json)
+                # self.parent.mongo_handler.delete_old_records(ids_in_json)
 
                 
                                      
