@@ -105,7 +105,7 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
     
 
 async def run(vehicle_make):
-    url = "https://discord.com/api/webhooks/1215992538704379995/FDhwehNxKhlMgmXJDWNCc-w7N8ObauV2ei2fOLUdQlP7IucvIBwMyrW6wUREPIwXaJT4"
+    url = "https://discord.com/api/webhooks/1341905651726549095/jr04KfhwPn6KdsmqYzGzbdTciLaKYW-wBXW9-Yu3Pf04_bVmrX5WMthxKgqaV6pO60ll"
 
     # Load previous data from the file if available
     try:
@@ -124,4 +124,4 @@ async def run(vehicle_make):
 
 
 if __name__ == "__main__":
-    asyncio.run(run("Porsche"))
+    asyncio.run(run("BMW"))

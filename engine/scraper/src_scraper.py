@@ -12,21 +12,21 @@ import platform
 import re
 import math
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
 from time import sleep
-
-#init()
 
 class NoSearchResultsException(Exception):
     pass
 
 class search_by:
-    class vehicle_brand:
-        def __init__(self, vehicle_make):
-            # Set the vehicle make
-            self.vehicle_make = vehicle_make
+    class vehicle_brand():
+        def __init__(self, vehicle_make: str) -> None:
+            """
+            Initialize the vehicle brand search with the provided vehicle make.
+            Sets Chrome options for headless mode and suppresses automation controls.
+            """
+            self.vehicle_make: str = vehicle_make
             
-            # Set Chrome options for headless mode and suppress logging
+            # Set Chrome options for headless mode
             self.chrome_options = Options()
             self.chrome_options.add_argument("--headless")
             self.chrome_options.add_argument("--window-size=1920,1080")
@@ -34,216 +34,200 @@ class search_by:
             self.chrome_options.add_argument("--no-sandbox")
             self.chrome_options.add_argument("--disable-dev-shm-usage")
             self.chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-            self.chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-       
-            self.chromedriver_path = None # Pass as None-Type, arg will be determined via utils, no longer here
+            self.chrome_options.add_argument(
+                "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            )
+            self.chromedriver_path = None  # Passed in from external utils
 
-
-        async def search_manheim(self):
-
+        async def search_manheim(self) -> list[dict]:
+            """
+            Searches for vehicles on the Manheim site based on vehicle make.
+            Returns a list of vehicle data including title, link, image, and vendor.
+            """
             vehicle_make = self.vehicle_make
-            
-            # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
-            write.console("cyan", f"\nSearching manheim for {vehicle_make}...")
 
-            write.line()
+            write.console("cyan", f"\nSearching Manheim for {vehicle_make}...")
+
+            # Initialize WebDriver asynchronously
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
-            write.line(1)
 
-            driver.get(f"https://manheim.com.au/damaged-vehicles/search?refineName=ManufacturerCode&ManufacturerCode={vehicle_make.upper()}&ManufacturerCodeDescription={vehicle_make.capitalize()}")
-
-            # Suppress logging
-            logging.getLogger('selenium').setLevel(logging.WARNING)
-
-            # Wait for contents
-            WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.TAG_NAME, "label"))
+            driver.get(
+                f"https://manheim.com.au/damaged-vehicles/search?refineName=ManufacturerCode"
+                f"&ManufacturerCode={vehicle_make.upper()}&ManufacturerCodeDescription={vehicle_make.capitalize()}"
             )
 
             returned_vehicle_list = []
 
-            # Save title of each vehicle
             try:
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, "vehicle-card"))
-                )
+                # Wait for vehicle cards to load
+                await asyncio.sleep(2)  # Asynchronous sleep instead of hard wait
+
                 vehicle_cards = driver.find_elements(By.CLASS_NAME, "vehicle-card")
                 for card in vehicle_cards:
-                    # Main details
+                    # Extract vehicle information
                     vehicle_name = card.find_element(By.XPATH, ".//a/h2").text
-                    # write.console('white', vehicle_name)
                     vehicle_link = card.find_element(By.XPATH, ".//a").get_attribute("href")
-                    # write.console('white', vehicle_link)
                     vehicle_img = card.find_element(By.XPATH, "./div/div/div/div/div/div/img").get_attribute("src")
-                    # write.console('white', vehicle_img)
 
-                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": vehicle_img, "vendor": "Manheim"})
-                    
-                write.console("green", "\nProcessing manheim data...")
-            except Exception:
-                write.console("red", f"\nNo results for {vehicle_make} on manheim...")
-                pass
+                    returned_vehicle_list.append({
+                        "title": vehicle_name,
+                        "link": vehicle_link,
+                        "img": vehicle_img,
+                        "vendor": "Manheim"
+                    })
 
-            driver.quit()
-    
+                write.console("green", f"\nProcessing Manheim data for {vehicle_make}...")
+            except Exception as e:
+                write.console("red", f"\nNo results found on Manheim for {vehicle_make}: {e}")
+            finally:
+                driver.quit()
+
             return returned_vehicle_list
 
 
-        async def search_pickles(self):
-
+        async def search_pickles(self) -> list[dict]:
+            """
+            Searches for vehicles on the Pickles site based on vehicle make.
+            Returns a list of vehicle data including title, link, image, and vendor.
+            """
             vehicle_make = self.vehicle_make
-            write.console("cyan", f"\nSearching pickles for {vehicle_make}")
+            write.console("cyan", f"\nSearching Pickles for {vehicle_make}")
 
-            # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
-
-            write.line()
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
-            write.line(1)
 
             driver.get(f"https://www.pickles.com.au/used/search/lob/salvage/items/{vehicle_make}?page=1")
             returned_vehicle_list = []
 
             try:
-                WebDriverWait(driver,5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="product-search-id"]/div/div[1]'))
-                )
-
-                # Find all vehicle cards
+                # Wait for vehicle cards to load asynchronously
+                await asyncio.sleep(5)
                 vehicle_cards = driver.find_elements(By.XPATH, '//*[@id="product-search-id"]/div/div')
 
-                # Iterate over each card
+                # Extract data from each card
                 for card in vehicle_cards:
-                    # Find the first direct child <a> tag within the card
                     vehicle_link = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ccg-product-card-link-")]').get_attribute("href")
-                    # Find the title text within the div with class "title pb-0 text-truncate-2l"
                     vehicle_name = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ct-title-wrapper-")]/header/h2[1]/span').text
-                    # Find the image URL from the "lazy-load-bg"
                     image_url = card.find_element(By.XPATH, './/*[starts-with(@id, "ps-ci-img-wrapper-")]/div/div[1]/div/div[1]/img').get_attribute("src")
-                    # Append the data to the list if the link is not already present
-                    returned_vehicle_list.append({"title": vehicle_name, "link": vehicle_link, "img": image_url, "vendor": "Pickles"})
+                    location = card.find_element(By.XPATH, '//*[@id="ps-cu-location-wrapper-61668588"]/p').text
 
-                # Print a message indicating data processing
-                write.console("green", "\nProcessing pickles data...")
+                    try:
+                        milage = card.find_element(By.XPATH, '//*[@id="ps-cu-location-wrapper-61668588"]/p').text
+                    except:
+                        milage = "N/A"
 
+                    try:
+                        engine = card.find_element(By.XPATH, '//*[@id="ps-ckf-key-features-4to6-61668588"]/div[1]/span[2]/p').text
+                    except:
+                        engine = "N/A"
+
+                    try:
+                        gearbox = card.find_element(By.XPATH, '//*[@id="ps-ckf-key-features-4to6-61668588"]/div[2]/span[2]/p').text
+                    except:
+                        gearbox = "N/A"
+                        
+                    try:
+                        auction_date = card.find_element(By.XPATH, '//*[@id="details-timezone-dropdown-61668588"]/div/time').text
+                    except:
+                        auction_date = "N/A"
+
+                    returned_vehicle_list.append({
+                        "title": vehicle_name,
+                        "link": vehicle_link,
+                        "img": image_url,
+                        "vendor": "Pickles"
+                    })
+
+                write.console("green", f"\nProcessing Pickles data for {vehicle_make}...")
             except Exception as e:
-                write.console("red", f"\nNo results for {vehicle_make.capitalize()} on pickles...")
+                write.console("red", f"\nNo results found on Pickles for {vehicle_make}: {e}")
+            finally:
+                driver.quit()
 
-            driver.quit()
             return returned_vehicle_list
         
 
-        async def search_gumtree(self):
+        async def search_gumtree(self) -> list[dict]:
+            """
+            Searches for vehicles on Gumtree based on vehicle make.
+            Returns a list of vehicle data including title, price, location, and more.
+            """
             vehicle_make = self.vehicle_make
-            write.console("cyan", f"\nSearching gumtree for {vehicle_make}...")
+            write.console("cyan", f"\nSearching Gumtree for {vehicle_make}...")
 
-            # Initialize Chrome WebDriver with the configured options
             service = Service(executable_path=self.chromedriver_path)
-
-            write.line()
             driver = create.create_webdriver(service=service, chrome_options=self.chrome_options)
-            write.line(1)
 
             url = f"https://www.gumtree.com.au/s-cars-vans-utes/{vehicle_make}/k0c18320r10?forsaleby=ownr&view=gallery"
-
             driver.get(url)
+
             returned_vehicle_list = []
 
-            # Suppress logging
-            logging.getLogger('selenium').setLevel(logging.WARNING)
-
             try:
-                # Check if the URL has changed, indicating no results
+                # Check if URL has changed, indicating no results
                 if driver.current_url != url:
-                    write.console("red", f"\nNo results for {vehicle_make.capitalize()} on gumtree...")
-                    # write.console('white', "Did not pass url test")
-                    driver.quit()
+                    write.console("red", f"\nNo results for {vehicle_make.capitalize()} on Gumtree...")
                     return []
-                else:
-                    # write.console('white', "Passed url test")
-                    pass
 
-                # sleep(15)
+                # Wait for vehicle listings asynchronously
+                await asyncio.sleep(5)
+                parent_element = driver.find_element(By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div')
 
-                # Wait until the parent element is present
-                parent_element = WebDriverWait(driver, 5).until(
-                    # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
-                    # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
-                    # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
-                    # //*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div/div
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div'))
-                )
-                write.console('white', "Passed initial check")
-                
-                # Find all 'a' elements that are children of the parent element
                 child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
-                
-                # Iterate over each child element
+
+                # Extract data from each child element
                 for child in child_elements:
-                    try:
-                        # Extract necessary information from each child element
-                        vehicle_link = child.get_attribute('href')
-                        aria_label = child.get_attribute('aria-label')
-                        image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
-                        
-                        # Split the aria-label to extract individual pieces of information
-                        parts = aria_label.split(".")
-                        vehicle_name = parts[0].strip()
-                        vehicle_price = parts[1].strip().replace("Price: ", "")
-                        vehicle_location = parts[2].strip().replace("Location: ", "")
-                        time_listed = parts[3].strip().replace("Ad listed ", "")
-                        
-                        returned_vehicle_list.append({
-                            "title": vehicle_name,
-                            "price": vehicle_price,
-                            "link": vehicle_link,
-                            "img": image_url,
-                            "location": vehicle_location,
-                            "date": time_listed,
-                            "vendor": "Gumtree"
-                        })
-                    except NoSuchElementException as e:
-                        pass
+                    vehicle_link = child.get_attribute('href')
+                    aria_label = child.get_attribute('aria-label')
+                    image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
 
-                write.console("green", "\nProcessing gumtree data...")
+                    parts = aria_label.split(".")
+                    vehicle_name = parts[0].strip()
+                    vehicle_price = parts[1].strip().replace("Price: ", "")
+                    vehicle_location = parts[2].strip().replace("Location: ", "")
+                    time_listed = parts[3].strip().replace("Ad listed ", "")
 
-            except TimeoutException as e:
-                write.console("red", f"\nError 1. No results for {vehicle_make.capitalize()} on gumtree...")
+                    returned_vehicle_list.append({
+                        "title": vehicle_name,
+                        "price": vehicle_price,
+                        "link": vehicle_link,
+                        "img": image_url,
+                        "location": vehicle_location,
+                        "date": time_listed,
+                        "vendor": "Gumtree"
+                    })
 
-            except NoSuchElementException as e:
-                write.console("red", f"\nError 2. No results for {vehicle_make.capitalize()} on gumtree...")
+                write.console("green", f"\nProcessing Gumtree data for {vehicle_make}...")
+            except (TimeoutException, NoSuchElementException) as e:
+                write.console("red", f"\nError retrieving data from Gumtree for {vehicle_make}: {e}")
+            finally:
+                driver.quit()
 
-            driver.quit()
             return returned_vehicle_list
         
 
 
-        async def search_by_brand(self):
+        async def search_by_brand(self) -> list[dict]:
+            """
+            Asynchronously searches across multiple platforms (Manheim, Pickles, Gumtree) based on vehicle make.
+            Returns combined results from all platforms.
+            """
             vehicle_make = self.vehicle_make
 
-            try:
-                manheim_task = asyncio.create_task(self.search_manheim())
-            except NoSearchResultsException:
-                write.console("red", f"No search results on Manheim for {vehicle_make}")
-                return await self.search_pickles()
-            
-            try:
-                pickles_task = asyncio.create_task(self.search_pickles())
-            except NoSearchResultsException:
-                write.console("red", f"No search results on Pickles for {vehicle_make}")
-                pass
+            # Initiating asynchronous tasks for each platform
+            manheim_task = asyncio.create_task(self.search_manheim())
+            pickles_task = asyncio.create_task(self.search_pickles())
 
-            # try:
-            #     gumtree_task = asyncio.create_task(self.search_gumtree())
-            # except NoSearchResultsException:
-            #     write.console("red", f"No search results on Gumtree for {vehicle_make}")
-            #     pass
+            # Uncomment below if you want Gumtree search as well
+            # gumtree_task = asyncio.create_task(self.search_gumtree())
 
+            # Wait for all tasks to complete
             manheim_result = await manheim_task
             pickles_result = await pickles_task
-            # gumtree_results = await gumtree_task
+            # gumtree_result = await gumtree_task
 
+            # Combine results
             return manheim_result + pickles_result
         
     class specific:
@@ -566,10 +550,7 @@ class search_by:
             gumtree_result = await gumtree_task
 
             return manheim_result + pickles_result + gumtree_result
-                
-    async def vehicle_model(brand, model):
-        await vehicle_brand(brand, True)
-        pass
+
 
 import json
 import math
@@ -605,61 +586,45 @@ class mass:
             self.service = Service(ChromeDriverManager().install())
 
         class manheim:
-            def __init__(self, parent):
+            def __init__(self, parent) -> None:
                 self.parent = parent
 
-            async def assign(self):
-                self.driver = webdriver.Chrome(service=self.parent.service, options=self.parent.chrome_options)
-
-                try:
-                    self.driver.get('https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&CategoryCode=13&PageNumber=1&RecordsPerPage=120&searchType=Z&page=1')
-                    WebDriverWait(self.driver, 5).until(
-                        EC.presence_of_element_located((By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]'))
-                    )
-                    _yield = self.driver.find_element(By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]').text
-                    self.net_vehicles = _yield
-                    _yield = int(_yield)/120
-                    self.pages = math.ceil(_yield)
-                
-                finally:
-                    write.console("green", f"Manheim begining work on {self.pages} pages and {self.net_vehicles} vehicles.")
-
+            async def assign(self) -> None:
+                """
+                Asynchronously scrape vehicle data from Manheim across multiple pages.
+                """
+                driver = webdriver.Chrome(service=self.parent.service, options=self.parent.chrome_options)
                 all_records = []
+
                 try:
+                    driver.get('https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial')
+                    await asyncio.sleep(5)  # Wait asynchronously for the page to load
+
+                    net_vehicles_text = driver.find_element(By.XPATH, '//*[@id="result-Container"]/nav[1]/div/div[1]/span/span[2]').text
+                    self.net_vehicles = int(net_vehicles_text)
+                    self.pages = math.ceil(self.net_vehicles / 120)
+
+                    write.console("green", f"Manheim scraping {self.pages} pages and {self.net_vehicles} vehicles.")
+
+                    # Loop through pages
                     for i in range(self.pages):
-                        WebDriverWait(self.driver, 10).until(
-                            EC.presence_of_element_located((By.XPATH, '//*[@id="result-Container"]/section/ul/li[1]'))
-                        )
+                        # Wait asynchronously before loading each page
+                        await asyncio.sleep(5)
 
-                        listings = self.driver.find_elements(By.XPATH, '//*[@id="result-Container"]/section/ul/li')
-                        for index, listing in enumerate(listings):
+                        listings = driver.find_elements(By.XPATH, '//*[@id="result-Container"]/section/ul/li')
+                        for listing in listings:
                             record = {}
-                            try:
-                                record['title'] = listing.find_element(By.XPATH, './/div[2]/div[2]/div[1]/div[1]/a/h2').text
-                            except NoSuchElementException:
-                                record['title'] = None
-                            # Repeat for other fields...
-
-                            # Add record to list
+                            record['title'] = listing.find_element(By.XPATH, './/div[2]/div[2]/div[1]/div[1]/a/h2').text
                             all_records.append(record)
 
-                        write.console("yellow", "Loading next page.")
-                        self.driver.get(f'https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&CategoryCode=13&PageNumber={i+1}&RecordsPerPage=120&searchType=P&')
-                
-                except Exception as e:
-                    write.console("red", f"Something went wrong: {e}")
+                        write.console("yellow", f"Loaded page {i + 1}/{self.pages}.")
 
+                        # Load next page
+                        driver.get(f'https://manheim.com.au/damaged-vehicles/search?CategoryCodeDescription=Cars%20%26%20Light%20Commercial&page={i+1}')
+                except Exception as e:
+                    write.console("red", f"Error while scraping Manheim: {e}")
                 finally:
-                    if self.driver:
-                        self.driver.quit()
-                
-                # Insert or update data in MongoDB
-                # for record in all_records:
-                    # self.parent.mongo_handler.insert_or_update(record)
-                
-                # Optionally, delete old records not in the current data
-                ids_in_json = [record['id'] for record in all_records if 'id' in record]
-                # self.parent.mongo_handler.delete_old_records(ids_in_json)
+                    driver.quit()
 
         class pickles:
             def __init__(self, parent):
