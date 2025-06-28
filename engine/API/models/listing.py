@@ -3,15 +3,16 @@ from typing import Optional
 
 class Listing(BaseModel):
     title: str
-    subtitle: Optional[str]
     link: str
-    img: Optional[str]
-    location: Optional[str]
-    odometer: Optional[str]
+    img: str
     vendor: str
 
-    # Optional fields for salvage/auction listings
-    cylinder: Optional[str]
-    gearbox: Optional[str]
-    wovr: Optional[str]
-    date: Optional[str]
+    # Optional fields based on some vendors
+    price: Optional[str] = None
+    location: Optional[str] = None
+    date: Optional[str] = None
+    subtitle: Optional[str] = None
+    wovr: Optional[str] = None
+    odometer: Optional[str] = None
+    cylinder: Optional[str] = None
+    gearbox: Optional[str] = None

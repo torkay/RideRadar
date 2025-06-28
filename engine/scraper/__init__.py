@@ -1,4 +1,3 @@
-# scraper/__init__.py
-
-from .src_scraper import mass
-from .mongodb_handler import MongoDBHandler
+from .vendors.pickles_scraper import scrape_pickles
+from .vendors.manheim_scraper import scrape_manheim
+from .vendors.gumtree_scraper import scrape_gumtree

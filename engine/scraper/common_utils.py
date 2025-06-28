@@ -6,6 +6,7 @@ from selenium import webdriver
 from engine.utils import write  # Reuse your console utils
 
 def setup_chrome_driver(headless=True):
+    headless=False
     options = Options()
     if headless:
         options.add_argument("--headless")
