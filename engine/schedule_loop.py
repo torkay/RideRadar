@@ -1,4 +1,4 @@
-import webhook_handler
+import RideRadar.engine.integrations.webhook_handler as webhook_handler
 import configparser
 import asyncio
 import time

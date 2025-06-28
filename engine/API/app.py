@@ -1,23 +1,24 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from .routes import listing_routes
 
-app = Flask(__name__)
-CORS(app)  # This allows cross-origin requests, which is necessary when running React and Flask on different ports.
+app = FastAPI(title="RideRadar API")
 
-@app.route('/api/button1', methods=['POST'])
-def button1_function():
-    response = {'message': 'Button 1 was clicked!'}
-    return jsonify(response)
+# Allow frontend
+origins = [
+    "http://localhost:5173",
+]
 
-@app.route('/api/button2', methods=['POST'])
-def button2_function():
-    response = {'message': 'Button 2 was clicked!'}
-    return jsonify(response)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.route('/api/button3', methods=['POST'])
-def button3_function():
-    response = {'message': 'Button 3 was clicked!'}
-    return jsonify(response)
+# Register routes
+app.include_router(listing_routes.router)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.get("/")
+def read_root():
+    return {"message": "RideRadar API is running"}

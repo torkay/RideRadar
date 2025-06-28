@@ -6,7 +6,7 @@ import platform
 from utils import verbose, find, version, write
 import os
 from rich.panel import Panel
-import webhook_handler
+import RideRadar.engine.integrations.webhook_handler as webhook_handler
 
 class Scheduler:
     def __init__(self):
