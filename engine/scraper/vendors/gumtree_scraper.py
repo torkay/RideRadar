@@ -1,52 +1,62 @@
-from ..common_utils import setup_chrome_driver, random_delay
+from ..common_utils import random_delay
+import time
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-def scrape_gumtree(make):
-    driver = setup_chrome_driver()
+def scrape_gumtree(max_pages=5):
+    options = uc.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+
+    driver = uc.Chrome(options=options)
     listings = []
+
     try:
-        url = f"https://www.gumtree.com.au/s-cars-vans-utes/{make}/k0c18320r10?forsaleby=ownr&view=gallery"
-        driver.get(url)
-        random_delay()
+        for page in range(1, max_pages + 1):
+            url = f"https://www.gumtree.com.au/s-cars-vans-utes/page-{page}/c18320r500"
+            print(f"\nLoading page {page}: {url}")
+            driver.get(url)
+            random_delay()
 
-        if driver.current_url != url:
-            return []
+            # Give time for listings to load
+            try:
+                WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, "user-ad-row-new-design"))
+                )
+            except:
+                print("⚠️ Listings not found or page blocked. Exiting.")
+                break
 
-        try:
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div'))
-            )
-            parent_element = driver.find_element(By.XPATH, '//*[@id="react-root"]/div/div[4]/div/div[2]/main/section/div[1]/div')
-            child_elements = parent_element.find_elements(By.TAG_NAME, 'a')
+            ad_elements = driver.find_elements(By.CLASS_NAME, "user-ad-row-new-design")
 
-            for child in child_elements:
+            if not ad_elements:
+                print("⚠️ No listings found. Likely last page or blocked.")
+                break
+
+            for ad in ad_elements:
                 try:
-                    vehicle_link = child.get_attribute('href')
-                    aria_label = child.get_attribute('aria-label')
-                    image_url = child.find_element(By.XPATH, './/img').get_attribute('src')
-
-                    parts = aria_label.split(".")
-                    vehicle_name = parts[0].strip()
-                    vehicle_price = parts[1].strip().replace("Price: ", "")
-                    vehicle_location = parts[2].strip().replace("Location: ", "")
-                    time_listed = parts[3].strip().replace("Ad listed ", "")
-
+                    link = ad.get_attribute("href")
+                    title = ad.find_element(By.CLASS_NAME, "user-ad-row-new-design__title-span").text
+                    price_elem = ad.find_elements(By.CLASS_NAME, "user-ad-price-new-design__price")
+                    price = price_elem[0].text if price_elem else "N/A"
+                    img_elem = ad.find_elements(By.TAG_NAME, "img")
+                    img = img_elem[0].get_attribute("src") if img_elem else ""
                     listings.append({
-                        "title": vehicle_name,
-                        "price": vehicle_price,
-                        "link": vehicle_link,
-                        "img": image_url,
-                        "location": vehicle_location,
-                        "date": time_listed,
+                        "title": title,
+                        "price": price,
+                        "link": link,
+                        "img": img,
                         "vendor": "Gumtree"
                     })
                 except:
                     continue
-        except (TimeoutException, NoSuchElementException):
-            pass
+
+            print(f"Collected {len(ad_elements)} listings on page {page}.")
+            random_delay()
+
     finally:
         driver.quit()
+
     return listings

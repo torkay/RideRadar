@@ -31,8 +31,9 @@ def run_full_scrape():
     all_listings = []
 
     print("\nPerforming FULL vendor scrapes...\n")
-    all_listings.extend(scrape_pickles(make=None))
-    all_listings.extend(scrape_manheim(make=None))
+    all_listings.extend(scrape_gumtree())
+    #all_listings.extend(scrape_pickles(make=None))
+    #all_listings.extend(scrape_manheim(make=None))
 
     print(f"\nScraped total {len(all_listings)} listings.\n")
 
