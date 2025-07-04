@@ -1,16 +1,11 @@
-from ..common_utils import random_delay
+from ..common_utils import random_delay, setup_chrome_driver
 import time
-import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 def scrape_carsales():
-    options = uc.ChromeOptions()
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-
-    driver = uc.Chrome(options=options)
+    driver = setup_chrome_driver(headless=False)
     listings = []
 
     try:
