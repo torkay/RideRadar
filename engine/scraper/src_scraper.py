@@ -1,6 +1,7 @@
 from .vendors.pickles_scraper import scrape_pickles
 from .vendors.manheim_scraper import scrape_manheim
 from .vendors.gumtree_scraper import scrape_gumtree
+from .vendors.carsales_scraper import scrape_carsales
 import json
 from pathlib import Path
 
@@ -31,7 +32,8 @@ def run_full_scrape():
     all_listings = []
 
     print("\nPerforming FULL vendor scrapes...\n")
-    all_listings.extend(scrape_gumtree())
+    all_listings.extend(scrape_carsales())
+    #all_listings.extend(scrape_gumtree())
     #all_listings.extend(scrape_pickles(make=None))
     #all_listings.extend(scrape_manheim(make=None))
 
