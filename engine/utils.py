@@ -1,4 +1,6 @@
 from colorama import init, Fore, Style
+from rich.console import Console
+from rich.theme import Theme
 import logging
 import os
 import shutil
@@ -6,6 +8,7 @@ import requests
 import zipfile
 from bs4 import BeautifulSoup
 import platform
+import time
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -13,30 +16,55 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from selenium.common.exceptions import SessionNotCreatedException
 
-version = "0.0.5"
+version = "0.0.6"
 verbose = False
 
-class write:
-    def console(color, text: str, override=False):
-        colors = {
-            'black': '\033[30m',
-            'red': '\033[31m',
-            'green': '\033[32m',
-            'yellow': '\033[33m',
-            'blue': '\033[34m',
-            'magenta': '\033[35m',
-            'cyan': '\033[36m',
-            'white': '\033[37m',
-            'reset': '\033[0m'
-        }
+
+# Define and apply a custom theme
+custom_theme = Theme({
+    "success": "green bold",
+    "error": "bold red",
+    "header": "bold underline cyan",
+})
+
+console = Console(theme=custom_theme)
+
+def write(text, style=None):
+    """Prints styled text using Rich console."""
+    if style and style in custom_theme.styles:
+        console.print(text, style=style)
+    else:
+        console.print(text)
+
+
+# Example test block
+if __name__ == "__main__":
+    write("This is a success message", style="success")
+    write("This is a default message")
+    write("Error: Something went wrong", style="error")
+    write("This is a header", style="header")
+
+# class write:
+#     def console(color, text: str, override=False):
+#         colors = {
+#             'black': '\033[30m',
+#             'red': '\033[31m',
+#             'green': '\033[32m',
+#             'yellow': '\033[33m',
+#             'blue': '\033[34m',
+#             'magenta': '\033[35m',
+#             'cyan': '\033[36m',
+#             'white': '\033[37m',
+#             'reset': '\033[0m'
+#         }
         
-        if color.lower() in colors:
-            color_code = colors[color.lower()]
-            reset_code = colors['reset']
-            if verbose or override:
-                print(color_code + text + reset_code)
-        else:
-            logging.error("Error occurred during coloring console: Invalid Color")
+#         if color.lower() in colors:
+#             color_code = colors[color.lower()]
+#             reset_code = colors['reset']
+#             if verbose or override:
+#                 print(color_code + text + reset_code)
+#         else:
+#             logging.error("Error occurred during coloring console: Invalid Color")
 
     def line(space=None, override=None):
         # For whatever reason, verbose chromedriver logs are windows exclusive

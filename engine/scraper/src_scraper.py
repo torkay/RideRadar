@@ -1,112 +1,52 @@
-from .vendors.pickles_scraper import scrape_pickles
-from .vendors.manheim_scraper import scrape_manheim
-from .vendors.gumtree_scraper import scrape_gumtree
-from .vendors.carsales_scraper import scrape_carsales
-from .vendors.ebay_scraper import scrape_ebay
-from .vendors.bikesales_scraper import scrape_bikesales
-import json
-from pathlib import Path
+import asyncio
+import time
+from engine.scraper.vendors.pickles_scraper import scrape_pickles
+from engine.scraper.vendors.manheim_scraper import scrape_manheim
+from engine.scraper.vendors.ebay_scraper import scrape_ebay
+from engine.scraper.common_utils import write
 
-def run_all_scrapers(make):
-    all_listings = []
+# Toggle scrapers on/off here
+ENABLED_VENDORS = {
+    "pickles": True,
+    "manheim": True,
+    "ebay": True,
+    "gumtree": False,
+    "bikesales": False
+}
 
-    print(f"\nScraping for {make} across all vendors...\n")
-    all_listings.extend(scrape_pickles(make))
-    all_listings.extend(scrape_manheim(make))
-    all_listings.extend(scrape_gumtree(make))
+async def run_scraper(name, scrape_func):
+    write(f"[ {name.upper()} ] Starting scraper", style="info")
+    start_time = time.time()
+    try:
+        listings = await asyncio.to_thread(scrape_func)
+        duration = time.time() - start_time
+        write(f"[ {name.upper()} ] Collected {len(listings)} listings in {duration:.2f}s", style="success")
+    except Exception as e:
+        write(f"[ {name.upper()} ] ERROR: {e}", style="error")
 
-    print(f"\nScraped total {len(all_listings)} listings.\n")
+def get_enabled_scrapers():
+    scrapers = []
+    if ENABLED_VENDORS["pickles"]:
+        scrapers.append(("pickles", scrape_pickles))
+    if ENABLED_VENDORS["manheim"]:
+        scrapers.append(("manheim", scrape_manheim))
+    if ENABLED_VENDORS["ebay"]:
+        scrapers.append(("ebay", scrape_ebay))
+    # Gumtree and Bikesales can be added when stable
+    return scrapers
 
-    filtered = process_listings(all_listings)
-    existing = load_existing_listings()
-    sold = detect_sold_listings(existing, filtered)
+async def main():
+    write("RideRadar Parallel Scraper Runner", style="header")
+    write("---------------------------------", style="header")
 
-    save_to_datastore(filtered)
+    scrapers = get_enabled_scrapers()
+    write(f"Preparing to run {len(scrapers)} vendor scrapers concurrently\n", style="info")
 
-    if sold:
-        print(f"Detected {len(sold)} sold/removed listings:")
-        for item in sold:
-            print(f"- {item.get('title')} ({item.get('link')})")
+    tasks = [run_scraper(name, func) for name, func in scrapers]
 
-    return filtered
+    await asyncio.gather(*tasks)
 
-def run_full_scrape():
-    all_listings = []
-
-    print("\nPerforming FULL vendor scrapes...\n")
-    all_listings.extend(scrape_bikesales())
-    #all_listings.extend(scrape_ebay())
-    #all_listings.extend(scrape_carsales())
-    #all_listings.extend(scrape_gumtree())
-    #all_listings.extend(scrape_pickles(make=None))
-    #all_listings.extend(scrape_manheim(make=None))
-
-    print(f"\nScraped total {len(all_listings)} listings.\n")
-
-    filtered = process_listings(all_listings)
-    existing = load_existing_listings()
-    sold = detect_sold_listings(existing, filtered)
-
-    save_to_datastore(filtered)
-
-    if sold:
-        print(f"Detected {len(sold)} sold/removed listings:")
-        for item in sold:
-            print(f"- {item.get('title')} ({item.get('link')})")
-
-    return filtered
-
-def process_listings(listings):
-    seen = set()
-    unique = []
-
-    for listing in listings:
-        key = listing.get("link")
-        if key and key not in seen:
-            seen.add(key)
-            unique.append(listing)
-
-    print(f"Filtered down to {len(unique)} unique listings.")
-    return unique
-
-def load_existing_listings():
-    DATA_PATH = Path(__file__).resolve().parent.parent / "storage" / "vehicles_data.json"
-    if not DATA_PATH.exists():
-        return []
-    with open(DATA_PATH, "r") as f:
-        return json.load(f)
-
-def detect_sold_listings(existing, current):
-    current_links = {item.get("link") for item in current}
-    sold = [item for item in existing if item.get("link") not in current_links]
-    return sold
-
-def save_to_datastore(listings):
-    DATA_PATH = Path(__file__).resolve().parent.parent / "storage" / "vehicles_data.json"
-    with open(DATA_PATH, "w") as f:
-        json.dump(listings, f, indent=4)
-    print(f"Saved {len(listings)} listings to datastore.")
-
-def manual_scraper_runner():
-    print("\nRideRadar Manual Scraper Runner")
-    print("-----------------------------")
-    print("1. Targeted search (single make)")
-    print("2. Full vendor scrape")
-    choice = input("Select option [1/2]: ").strip()
-
-    if choice == "1":
-        make = input("Enter vehicle make to scrape: ").strip()
-        if not make:
-            print("No make entered. Exiting.")
-            return
-        results = run_all_scrapers(make)
-    elif choice == "2":
-        results = run_full_scrape()
-    else:
-        print("Invalid choice. Exiting.")
-        return
-
-    print(f"\n{len(results)} listings collected and stored.\n")
+    write("\nAll enabled vendor scrapes completed.", style="success")
 
 if __name__ == "__main__":
-    manual_scraper_runner()
+    asyncio.run(main())
