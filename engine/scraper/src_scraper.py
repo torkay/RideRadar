@@ -7,8 +7,8 @@ from engine.scraper.common_utils import write
 
 # Toggle scrapers on/off here
 ENABLED_VENDORS = {
-    "pickles": True,
-    "manheim": True,
+    "pickles": False,
+    "manheim": False,
     "ebay": True,
     "gumtree": False,
     "bikesales": False
