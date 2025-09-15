@@ -1,46 +1,106 @@
-import RideRadar.engine.integrations.webhook_handler as webhook_handler
-import configparser
+import argparse
 import asyncio
-import time
+import importlib
 import os
-from utils import find, write, version
+import re
+import time
+from hashlib import sha1
 
-def set_cmd_title(title):
-    os.system(f"title {title}")
+from engine.runtime.vendor_status import mark_success, mark_error
+from engine.scraper.pipeline import save_normalized
 
-async def process_vehicles(file_path):
-    with open(file_path, 'r') as file:
-        for line in file:
-            vehicle_make = line.strip()  # Remove leading/trailing whitespaces and newlines
-            await webhook_handler.run(vehicle_make)
 
-async def run_handler():
-    file_path = find.vehicle_text()
-    if find.server_os() == 'windows':
-        os.system(f"title RideRadar: Scheduler (DO NOT CLOSE)")
-    await process_vehicles(file_path)
+def _parse_price_to_int(price_val):
+    if price_val is None:
+        return None
+    if isinstance(price_val, (int, float)):
+        return int(price_val)
+    s = str(price_val)
+    digits = re.sub(r"[^0-9]", "", s)
+    return int(digits) if digits else None
 
-async def main():
-    ''' Run the handler once without looping '''
-    
-    start_time = time.time()
-    await run_handler()
-    end_time = time.time()
 
-    elapsed_time = end_time - start_time
-    formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-    
-    write.line(space=True, override=True)
-    write.console("white", f"Worker completed search | Time elapsed: {formatted_elapsed_time}")
-    write.line(override=True)
+def _basic_normalize(vendor: str, item: dict) -> dict:
+    url = item.get("link") or item.get("url") or ""
+    sid_basis = url or item.get("title") or repr(item)[:200]
+    source_id = sha1(sid_basis.encode("utf-8")).hexdigest()
+    media = [item.get("img")] if item.get("img") else []
+    return {
+        "source": vendor.lower(),
+        "source_id": source_id,
+        "source_url": url,
+        "price": _parse_price_to_int(item.get("price")),
+        "media": media,
+        "raw": item,
+        "status": "active",
+    }
 
-def run_scheduler():
-    if find.server_os() == 'windows':
-        set_cmd_title("Warning - Do Not Close")
-    write.line(space=True, override=True)
-    write.console('white', f"Started RideRadar server instance: version {version}")
-    write.line(override=True)
-    asyncio.run(main())
+
+def _load_scrape_func(vendor: str):
+    module_name = f"engine.scraper.vendors.{vendor}_scraper"
+    func_name = f"scrape_{vendor}"
+    mod = importlib.import_module(module_name)
+    fn = getattr(mod, func_name)
+    return fn
+
+
+async def run_vendor_once(vendor: str, limit: int | None = None) -> tuple[int, int]:
+    """Return (fetched, saved)."""
+    try:
+        scrape = _load_scrape_func(vendor)
+    except Exception as e:
+        mark_error(vendor, f"load failed: {e}")
+        return (0, 0)
+
+    try:
+        listings = await asyncio.to_thread(scrape)
+        if limit is not None:
+            listings = listings[: int(limit)]
+        saved = 0
+        if os.getenv("SUPABASE_DB_URL"):
+            for item in listings:
+                norm = _basic_normalize(vendor, item)
+                try:
+                    save_normalized(norm)
+                    saved += 1
+                except Exception as e:
+                    # Saving should not cause overall vendor failure
+                    mark_error(vendor, f"save error: {e}")
+        mark_success(vendor)
+        return (len(listings), saved)
+    except Exception as e:
+        mark_error(vendor, e)
+        return (0, 0)
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description="RideRadar minimal vendor runner")
+    p.add_argument("--vendors", type=str, required=False, default="",
+                   help="Comma-separated vendor keys (e.g., pickles,manheim,gumtree)")
+    p.add_argument("--limit", type=int, required=False, default=None,
+                   help="Max listings to process per vendor")
+    p.add_argument("--once", action="store_true", help="Run a single pass and exit (default)")
+    return p.parse_args()
+
+
+async def cli_main():
+    args = parse_args()
+    vendors = [v.strip().lower() for v in args.vendors.split(",") if v.strip()] if args.vendors else []
+    if not vendors:
+        # try to auto-discover the common ones if none specified
+        vendors = ["pickles", "manheim", "gumtree"]
+
+    print(f"Running vendors: {', '.join(vendors)} | limit={args.limit}")
+    fetched_total = 0
+    saved_total = 0
+    for v in vendors:
+        fetched, saved = await run_vendor_once(v, args.limit)
+        fetched_total += fetched
+        saved_total += saved
+        print(f"{v}: fetched={fetched}, saved={saved}")
+
+    print(f"done. totals: fetched={fetched_total}, saved={saved_total}")
+
 
 if __name__ == "__main__":
-    run_scheduler()
+    asyncio.run(cli_main())
