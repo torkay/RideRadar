@@ -9,6 +9,8 @@ Run
 - From `engine`: `uvicorn api.app:app --port 8000`
 
 Quick checks
+- Health:
+  - `curl 'http://localhost:8000/healthz'`
 - List latest 5:
   - `curl 'http://localhost:8000/listings?limit=5'`
 - Filter by make/model:
