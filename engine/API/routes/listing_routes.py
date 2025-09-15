@@ -1,41 +1,69 @@
-from fastapi import APIRouter, Query
-from ..models.listing import Listing
-from typing import List, Optional
-import json
-from pathlib import Path
+from fastapi import APIRouter, Query, HTTPException
+from typing import Optional
+from uuid import UUID
+import psycopg
+from db.supabase_client import get_conn
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
 
-DATA_PATH = Path(__file__).resolve().parent.parent.parent / "storage" / "vehicles_data.json"
-
-@router.get("/", response_model=List[Listing])
+@router.get("/")
 async def get_listings(
     make: Optional[str] = Query(None),
     model: Optional[str] = Query(None),
-    location: Optional[str] = Query(None),
-    vendor: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    price_min: Optional[int] = Query(None, ge=0),
+    price_max: Optional[int] = Query(None, ge=0),
+    limit: int = Query(20, ge=1, le=200),
 ):
-    try:
-        with open(DATA_PATH, "r") as file:
-            data = json.load(file)
+    where = []
+    params = []
+    if make:
+        where.append("lower(make) = lower(%s)")
+        params.append(make)
+    if model:
+        where.append("lower(model) = lower(%s)")
+        params.append(model)
+    if state:
+        where.append("upper(state) = upper(%s)")
+        params.append(state)
+    if price_min is not None:
+        where.append("price >= %s")
+        params.append(price_min)
+    if price_max is not None:
+        where.append("price <= %s")
+        params.append(price_max)
 
-        filtered_data = []
-        for listing in data:
-            listing_vendor = listing.get("vendor", "").lower()
-            listing["auction"] = listing_vendor in ["manheim", "pickles"]
+    where_sql = " where " + " and ".join(where) if where else ""
+    sql = f"""
+      select id, source, source_id, source_url, fingerprint,
+             make, model, variant, year, price, odometer,
+             body, trans, fuel, engine, drive,
+             state, postcode, suburb, lat, lng,
+             media, seller, status, last_seen
+      from listings
+      {where_sql}
+      order by last_seen desc
+      limit %s
+    """
+    with get_conn() as conn, conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(sql, (*params, limit))
+        rows = cur.fetchall()
+        return rows
 
-            if make and make.lower() not in listing["title"].lower():
-                continue
-            if model and model.lower() not in listing["title"].lower():
-                continue
-            if location and location.lower() not in listing.get("location", "").lower():
-                continue
-            if vendor and vendor.lower() not in listing["vendor"].lower():
-                continue
-
-            filtered_data.append(listing)
-
-        return filtered_data
-
-    except Exception as e:
-        return {"error": f"Failed to load listings: {e}"}
+@router.get("/{listing_id}")
+async def get_listing_by_id(listing_id: UUID):
+    sql = """
+      select id, source, source_id, source_url, fingerprint,
+             make, model, variant, year, price, odometer,
+             body, trans, fuel, engine, drive,
+             state, postcode, suburb, lat, lng,
+             media, seller, raw, status, last_seen
+      from listings
+      where id = %s
+    """
+    with get_conn() as conn, conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(sql, (listing_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        return row
