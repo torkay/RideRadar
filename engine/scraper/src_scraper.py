@@ -1,5 +1,6 @@
 import asyncio
 import time
+from engine.runtime.vendor_status import mark_success, mark_error
 from engine.scraper.vendors.pickles_scraper import scrape_pickles
 from engine.scraper.vendors.manheim_scraper import scrape_manheim
 from engine.scraper.vendors.ebay_scraper import scrape_ebay
@@ -21,8 +22,10 @@ async def run_scraper(name, scrape_func):
         listings = await asyncio.to_thread(scrape_func)
         duration = time.time() - start_time
         write(f"[ {name.upper()} ] Collected {len(listings)} listings in {duration:.2f}s", style="success")
+        mark_success(name)
     except Exception as e:
         write(f"[ {name.upper()} ] ERROR: {e}", style="error")
+        mark_error(name, e)
 
 def get_enabled_scrapers():
     scrapers = []

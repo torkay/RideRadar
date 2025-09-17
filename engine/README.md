@@ -25,7 +25,13 @@ Explaination: Worker will search by brand type 'BMW' on 'Pickles' and return dat
 ### To scheduled a worker
 Step 1. Append all desired both `brand` and `specific` type vehicles to `vehicles.txt` in existing format
 
-Step 2. Get and change `url` in `webhook_handler.py` to your custom webhook address
+Step 2. Configure secrets via environment variables (do not hardcode)
+
+- Set `DISCORD_WEBHOOK_URL` to your custom Discord webhook URL
+- Set `SUPABASE_DB_URL` if you want to persist to Postgres
+- Optionally set `PROD_ORIGIN` for API CORS and `DB_BACKEND` (defaults to `postgres`)
+
+Example: create `engine/.env` with these values when running locally. Never commit real secrets.
 
 Step 3. Run `schedule_loop.py` on your local machine
 
