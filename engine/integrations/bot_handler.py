@@ -1,3 +1,4 @@
+import os
 import discord
 from discord import app_commands
 import RideRadar.engine.storage.vendor_storage as vendor_storage
@@ -9,11 +10,15 @@ intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
+# Optional: limit commands to a single guild if provided
+_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
+GUILD_OBJ = discord.Object(id=int(_GUILD_ID)) if _GUILD_ID and _GUILD_ID.isdigit() else None
+
 # Define your slash command
 @tree.command(
     name="search",
     description="Search for a vehicles on various salvage vendors",
-    guild=discord.Object(id="1013725487476002897")
+    guild=GUILD_OBJ,
 )
 async def search_command(interaction: discord.Interaction, vehicle: str):
     # Send a message to acknowledge the user's command
@@ -49,7 +54,7 @@ async def search_command(interaction: discord.Interaction, vehicle: str):
 @tree.command(
     name="calculate",
     description="Add all fixed and variable fees onto an amount of money",
-    guild=discord.Object(id="1013725487476002897")
+    guild=GUILD_OBJ,
 )
 async def calculate_command(interaction: discord.Interaction, amount: float):
     # Process the user's response
@@ -65,7 +70,7 @@ async def calculate_command(interaction: discord.Interaction, amount: float):
 @tree.command(
     name="watchlist",
     description="Add a listing to the watchlist",
-    guild=discord.Object(id="1013725487476002897")
+    guild=GUILD_OBJ,
 )
 async def watchlist_command(interaction: discord.Interaction, listing_url: str):
     # Add the listing URL to the watchlist
@@ -91,8 +96,16 @@ def calculate_pickles(amount):
 # Sync commands to Discord when the client is ready
 @client.event
 async def on_ready():
-    await tree.sync(guild=discord.Object(id="1013725487476002897"))
+    if GUILD_OBJ is not None:
+        await tree.sync(guild=GUILD_OBJ)
+    else:
+        await tree.sync()
     print("Ready!")
 
 # Run the bot
-client.run('')
+if __name__ == "__main__":
+    token = os.getenv("DISCORD_BOT_TOKEN")
+    if not token:
+        print("DISCORD_BOT_TOKEN not set; bot will not start.")
+    else:
+        client.run(token)
