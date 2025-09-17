@@ -7,6 +7,7 @@ DB_BACKEND = os.getenv("DB_BACKEND", "postgres").lower()
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
 
+@router.get("")
 @router.get("/")
 async def get_listings(
     make: Optional[str] = Query(None),
