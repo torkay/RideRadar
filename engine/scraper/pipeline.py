@@ -13,7 +13,7 @@ def save_normalized(listing: Dict[str, Any]) -> None:
         return
 
     # Lazy import inside function so environments without DB can still import the module
-    from db.supabase_client import upsert_listing, make_fingerprint
+    from engine.db.supabase_client import upsert_listing, make_fingerprint
 
     if not listing.get("fingerprint"):
         listing["fingerprint"] = make_fingerprint(listing)
@@ -28,4 +28,3 @@ def save_many(listings: Iterable[Dict[str, Any]]) -> int:
         save_normalized(item)
         count += 1
     return count
-

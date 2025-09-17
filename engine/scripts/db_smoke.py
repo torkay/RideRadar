@@ -7,7 +7,7 @@ Usage:
 Requires SUPABASE_DB_URL in the environment.
 """
 
-from db.supabase_client import get_conn, upsert_listing, fetch_latest, make_fingerprint
+from engine.db.supabase_client import get_conn, upsert_listing, fetch_latest, make_fingerprint
 
 demo = {
     "source": "pickles",
