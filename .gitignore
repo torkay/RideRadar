@@ -8,6 +8,7 @@ __pycache__/
 venv/
 
 # Node/Frontend
+website/
 website/node_modules/
 website/.next/
 website/.vercel/
