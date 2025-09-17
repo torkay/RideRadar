@@ -9,16 +9,26 @@ def save_normalized(listing: Dict[str, Any]) -> None:
     - other values: no-op for now (Mongo path reserved)
     """
     backend = os.getenv("DB_BACKEND", "postgres").lower()
-    if backend != "postgres":
+    if backend == "supabase_api":
+        # Lazy import to avoid hard dependency when not used
+        from engine.db import supabase_api as sb
+
+        if not listing.get("fingerprint"):
+            listing["fingerprint"] = sb.make_fingerprint(listing)
+        sb.upsert_listing(listing)
         return
 
-    # Lazy import inside function so environments without DB can still import the module
-    from engine.db.supabase_client import upsert_listing, make_fingerprint
+    if backend == "postgres":
+        # Lazy import so environments without DB can still import the module
+        from engine.db.supabase_client import upsert_listing, make_fingerprint
 
-    if not listing.get("fingerprint"):
-        listing["fingerprint"] = make_fingerprint(listing)
+        if not listing.get("fingerprint"):
+            listing["fingerprint"] = make_fingerprint(listing)
+        upsert_listing(listing)
+        return
 
-    upsert_listing(listing)
+    # Other backends: no-op for now
+    return
 
 
 def save_many(listings: Iterable[Dict[str, Any]]) -> int:
