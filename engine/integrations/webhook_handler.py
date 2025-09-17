@@ -3,6 +3,7 @@ from discord import Webhook
 import aiohttp
 import json
 from scraper.src_scraper import search_by, request
+import os
 import asyncio
 from colorama import init, Fore, Style
 import time
@@ -105,7 +106,10 @@ async def retrieve_and_send(url, previous_data, vehicle_make):
     
 
 async def run(vehicle_make):
-    url = "https://discord.com/api/webhooks/1341905651726549095/jr04KfhwPn6KdsmqYzGzbdTciLaKYW-wBXW9-Yu3Pf04_bVmrX5WMthxKgqaV6pO60ll"
+    url = os.getenv("DISCORD_WEBHOOK_URL")
+    if not url:
+        write.console("red", "DISCORD_WEBHOOK_URL is not set; skipping webhook send.")
+        return False
 
     # Load previous data from the file if available
     try:
