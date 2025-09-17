@@ -30,15 +30,22 @@ demo = {
 demo["fingerprint"] = make_fingerprint(demo)
 
 if __name__ == "__main__":
-    print("Connecting to database...")
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("select 1")
-            print("DB connection OK")
+    try:
+        print("Connecting to database...")
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("select 1")
+                print("DB connection OK")
 
-    print("Upserting demo row...")
-    upsert_listing(demo)
-    print("Fetching latest rows...")
-    rows = fetch_latest(3)
-    for r in rows:
-        print(r)
+        print("Upserting demo row...")
+        upsert_listing(demo)
+        print("Fetching latest rows...")
+        rows = fetch_latest(3)
+        for r in rows:
+            print(r)
+    except Exception as e:
+        print(
+            "DB_SMOKE failed. Check SUPABASE_DB_URL (pooler host + dotted username) or use DB_BACKEND=supabase_api."
+        )
+        print(str(e))
+        raise
