@@ -1,67 +1,108 @@
 # RideRadar
-### Let us do the searching 🔎; Comparitive car buy and sell.
 
-RideRadar expands your options by comparing the entire market, providing listings from every popular car-market site in Australia.
-Get the most from your sold car and quickly by comparing offers across every car sales platform instantaneously after posting.
+RideRadar is an engine for discovering and comparing used-vehicle listings across multiple sources. It ingests cooperative vendors, normalizes to a unified schema, de-duplicates, and exposes a small API for search and health/status. The design favors stability, compliance, and a clean path to partnerships. For non-cooperative sources, use deep links and client-side helpers (no server-side scraping).
 
-## Developer apparatus
-Early developer rideradar library support for database content, data analysis, scheduled automative listing services.
-### Importing libraries
+## At a glance
+- **Focus:** AU vehicle listings; unified data model + API  
+- **Engine:** FastAPI, Python 3.11  
+- **Storage:** Postgres (psycopg) **or** Supabase REST (supabase-py)  
+- **Ingest:** vendor scrapers, normalization, fingerprint de-dupe  
+- **Health:** per-vendor (/healthz), simple circuit breaker  
+- **Scheduler:** minimal CLI to run vendors on demand
+
+## How it works
+- Scrapers live in `engine/scraper/vendors/` and return lightweight listing summaries.
+- The pipeline (`engine/scraper/pipeline.py`) normalizes and upserts via `DB_BACKEND`:
+  - `postgres` → direct Postgres (psycopg) with unique constraints  
+  - `supabase_api` → Supabase REST (supabase-py)
+- The API (`engine/api/app.py`) provides:
+  - `GET /listings` — filters: `make`, `model`, `state`, `price_min`, `price_max`, `limit`
+  - `GET /listings/{id}` — UUID
+  - `GET /healthz` — snapshot of vendor status
+
+## Quick start
+
+### 1) Prereqs
+- Python 3.11
+- Virtual environment recommended
+
+```bash
+# from repo root
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install -r engine/api/requirements.txt
 ```
-from rideradar.engine.utils import *
-from rideradar.engine.src_scraper import search_by
+
+### 2) Environment (pick ONE backend)
+See `engine/.env.example` for reference.
+
+**Option A — Postgres (direct):**
+```env
+DB_BACKEND=postgres
+SUPABASE_DB_URL=postgresql://<user>:<pass>@<host>:5432/<db>?sslmode=require
 ```
-### Request vehicle data
-Yield results based on `keyword` or `keywords`
+
+**Option B — Supabase REST:**
+```env
+DB_BACKEND=supabase_api
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_KEY=<service_role_key>
 ```
-search = search_by.specific(vehicle_make)
-current_data = await search.search_by_specific()
+
+> Don’t set both backends at once. Choose A **or** B.
+
+### 3) Run the API
+```bash
+uvicorn engine.api.app:app --port 8000
 ```
-Yield results based on `brand type`
+
+### 4) Sanity checks
+```bash
+# health
+curl http://localhost:8000/healthz
+
+# sample listings
+curl 'http://localhost:8000/listings?limit=5'
 ```
-search = search_by.vehicle_brand(vehicle_make)
-current_data = await search.search_by_brand()  # Call the correct method here
+
+### 5) Smoke tests
+```bash
+# Postgres path
+python -m engine.scripts.db_smoke
+
+# Supabase REST path
+python -m engine.scripts.api_smoke
+
+# Vendor-only (no DB write)
+python -m engine.scripts.vendor_smoke --vendor pickles --limit 3
 ```
-### Schedule automative listing service
-1. Update `vehicles.txt` to yield results based on interchangeably `brand type` and `keyword type` in the according format
-2. Run `schedule_loop.py`
-Additionally, point `webhook_handler.py` toward desired web address for personal use
 
+More examples: `engine/API_SMOKE.md`, `engine/RUNBOOK.md`.
 
-## Developmental outline of RideRadar.
-![Showcase Image](mindmap.md)
+## Project direction
+**Near-term**
+- Harden vendor scrapers and normalization
+- Saved searches (skeleton) + basic deal scoring for cooperative sources
+- Deep-link builders for non-cooperative sources; optional client-side helper
 
-## Features
-### Buy
-- Manheim
-- Pickles
-- Carsales
-- Autotrader
-- Gumtree
-- FB Marketplace
-### Sell
-- Carsales
-- Autotrader
-- Gumtree
-- FB Marketplace
+**Longer-term**
+- Authorized data partnerships
+- Expanded metrics + alerting
 
-## Value a deal? 🏷️ Every car, one click away.
+## Compliance & guardrails
+- Respect `robots.txt` and vendor ToS; throttle + backoff
+- Don’t persist content from non-cooperative sources
+- Abort on CAPTCHA/blocks; trip breaker; report via `/healthz`
+- Secrets via environment only
 
-### Dev log:
-> Manheim, Pickles completed. Simply upon requesting a vehicle brand, returned to you will be a list of vehicles each including information containing the title, the link to sale, and image.
+## Repo layout (engine)
+- `engine/api/` — FastAPI app, routes, models
+- `engine/db/` — Postgres client + Supabase REST client
+- `engine/scraper/` — vendor scrapers, pipeline
+- `engine/runtime/` — vendor status tracker
+- `engine/scripts/` — smokes and small CLIs
 
-> Interact with the service via discord, request information via a discord bot programmed with Discord.py, and recieve extensive sale returns via discord webhook's.
+> This repo is the engine. Frontend lives elsewhere.
 
-> Development on 24/7 vehicle scout service is in fruition, just bought a Raspberry Pi 5, in hopes to host this locally!
-
-### To do:
-> Init linux server in virtual environment for packages and install 24/7 schedule.
-
-> Extend the scope of web-crawler to various other used car vendors including: Facebook marketplace via their developer api, Carsales.com.au, Grays.com and Gumtree.com.au!
-
-> Have the service hosted via my Raspberry Pi 5 server, and have a full-stack portal hosted in conjunction with torkay.com that'll connect to my local server in order to crawl the web.
-
-> Be able to create accounts, save listings to that account, and keep fingers in each listing to discover if they've sold yet and delete them from the server. 
-
-
-
+## Status
+Active development. Contributions welcome. Scope stays lean while the engine and interfaces stabilize. Open focused issues/PRs.
