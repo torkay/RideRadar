@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from uuid import UUID
+import os
 import psycopg
-from db.supabase_client import get_conn
+from engine.db.supabase_client import get_conn
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
 
@@ -15,6 +16,27 @@ async def get_listings(
     price_max: Optional[int] = Query(None, ge=0),
     limit: int = Query(20, ge=1, le=200),
 ):
+    if os.getenv("DB_BACKEND", "postgres").lower() == "supabase_api":
+        # Supabase REST path
+        from engine.db import supabase_api as sb
+        q = sb._sb.table("listings").select(
+            "id, source, source_id, source_url, fingerprint, make, model, variant, year, price, odometer, body, trans, fuel, engine, drive, state, postcode, suburb, lat, lng, media, seller, status, last_seen"
+        )
+        if make:
+            q = q.eq("make", make)
+        if model:
+            q = q.eq("model", model)
+        if state:
+            q = q.eq("state", state)
+        if price_min is not None:
+            q = q.gte("price", price_min)
+        if price_max is not None:
+            q = q.lte("price", price_max)
+        q = q.order("last_seen", desc=True).limit(limit)
+        res = q.execute()
+        return res.data or []
+
+    # Default Postgres path via psycopg
     where = []
     params = []
     if make:
