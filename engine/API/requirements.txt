@@ -1,3 +1,4 @@
 fastapi
 uvicorn[standard]
 pydantic
+supabase>=2,<3
