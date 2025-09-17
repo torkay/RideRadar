@@ -2,11 +2,15 @@
 
 Prereqs
 - Set `SUPABASE_DB_URL` to your Postgres connection string.
+- Or set Supabase REST envs to use supabase-py instead of psycopg:
+  - `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
+  - `DB_BACKEND=supabase_api`
 - Optional: set `PROD_ORIGIN` for CORS (adds to allowed origins).
 - Ensure dependencies are installed for FastAPI and psycopg.
 
 Run
 - From `engine`: `uvicorn api.app:app --port 8000`
+- Supabase API smoke: `python -m engine.scripts.api_smoke`
 
 Quick checks
 - Health:
