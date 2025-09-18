@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+import random
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlencode
@@ -35,6 +38,15 @@ def search(
     page_limit: int = 2,
     debug: bool = False,
 ) -> List[Dict[str, Any]]:
+    # Polite throttle config (milliseconds)
+    try:
+        delay_lo_ms = int(os.getenv("SCRAPE_DELAY_MIN_MS", "400"))
+        delay_hi_ms = int(os.getenv("SCRAPE_DELAY_MAX_MS", "900"))
+    except ValueError:
+        delay_lo_ms, delay_hi_ms = 400, 900
+    if delay_hi_ms < delay_lo_ms:
+        delay_hi_ms = delay_lo_ms
+
     keywords = " ".join(x for x in [make, model] if x)
     headers = {
         "User-Agent": (
@@ -47,10 +59,28 @@ def search(
     }
     items: List[Dict[str, Any]] = []
     with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True) as client:
+        # Best-effort robots check (do not fail if unreachable)
+        try:
+            rbt = client.get(urljoin(BASE, "/robots.txt"))
+            if rbt.status_code == 200:
+                txt = rbt.text
+                disallows = [ln.split(":", 1)[1].strip() for ln in txt.splitlines() if ln.lower().startswith("disallow:")]
+                blocked = any(seg for seg in disallows if "/s-" in seg or "all-items" in seg)
+                print(f"robots: {len(disallows)} disallows; blocks listing paths={blocked}")
+        except Exception:
+            pass
         for page in range(1, max(1, page_limit) + 1):
             url = build_search_url(keywords, state, page)
             resp = client.get(url)
             print(f"GET {resp.request.url} -> {resp.status_code} len={len(resp.text)}")
+            # Detect challenge/captcha pages politely
+            lower = resp.text.lower()
+            if (
+                "pardon our interruption" in lower
+                or "/splashui/challenge" in lower
+                or "captcha" in lower
+            ):
+                raise RuntimeError("challenge page encountered")
             if resp.status_code != 200:
                 continue
             if debug and page == 1:
@@ -117,6 +147,10 @@ def search(
                     return items[:limit]
 
             print(f"gumtree tiles: {len(items) - count_before}")
+            # Throttle between pages
+            if page < page_limit and len(items) < limit:
+                delay = random.uniform(delay_lo_ms / 1000.0, delay_hi_ms / 1000.0)
+                time.sleep(delay)
     return items[:limit]
 
 
