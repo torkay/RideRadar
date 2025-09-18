@@ -10,6 +10,7 @@ Orchestrator (single vendor → normalize → pipeline):
 
 - `python -m engine.scraper.orchestrator --vendor pickles --limit 10`
 - `python -m engine.scraper.orchestrator --vendor ebay --limit 10`
+- `python -m engine.scraper.orchestrator --vendor gumtree --make Toyota --model Corolla --state NSW --limit 5 --debug`
 
 eBay with keywords and debug (saves snapshot):
 

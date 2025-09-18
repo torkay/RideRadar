@@ -113,7 +113,7 @@ def normalize_gumtree(item: Dict[str, Any]) -> Dict[str, Any]:
     if not url:
         raise ValueError("missing source_url")
     source = "gumtree"
-    source_id = _extract_trailing_token(url, (item.get("title") or ""))
+    source_id = item.get("ad_id") or _extract_trailing_token(url, (item.get("title") or ""))
     if not source_id:
         raise ValueError("missing source_id")
     out = _canon_base(source, source_id, url, item)
@@ -121,10 +121,16 @@ def normalize_gumtree(item: Dict[str, Any]) -> Dict[str, Any]:
     m = re.search(r"\b(20\d{2}|19\d{2})\b", title)
     if m:
         out["year"] = _to_int(m.group(1))
-    if item.get("img"):
-        out["media"] = [item["img"]]
-    if item.get("price"):
-        out["price"] = _to_int(item["price"])
+    thumb = item.get("thumb") or item.get("img")
+    if thumb:
+        out["media"] = [thumb]
+    price_str = item.get("price_str") or item.get("price")
+    if price_str:
+        out["price"] = _to_int(price_str)
+    loc = (item.get("location") or "").upper()
+    sm = re.search(r"\b(ACT|NSW|NT|QLD|SA|TAS|VIC|WA)\b", loc)
+    if sm:
+        out["state"] = sm.group(1)
     return out
 
 

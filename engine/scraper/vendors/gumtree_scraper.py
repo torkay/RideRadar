@@ -1,62 +1,125 @@
-from ..common_utils import random_delay
-import time
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from __future__ import annotations
 
-def scrape_gumtree(max_pages=5):
-    options = uc.ChromeOptions()
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-blink-features=AutomationControlled")
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin, urlencode
 
-    driver = uc.Chrome(options=options)
-    listings = []
+import httpx
+from bs4 import BeautifulSoup
 
-    try:
-        for page in range(1, max_pages + 1):
-            url = f"https://www.gumtree.com.au/s-cars-vans-utes/page-{page}/c18320r500"
-            print(f"\nLoading page {page}: {url}")
-            driver.get(url)
-            random_delay()
 
-            # Give time for listings to load
-            try:
-                WebDriverWait(driver, 15).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, "user-ad-row-new-design"))
-                )
-            except:
-                print("⚠️ Listings not found or page blocked. Exiting.")
-                break
+BASE = "https://www.gumtree.com.au"
 
-            ad_elements = driver.find_elements(By.CLASS_NAME, "user-ad-row-new-design")
 
-            if not ad_elements:
-                print("⚠️ No listings found. Likely last page or blocked.")
-                break
+def build_search_url(keywords: Optional[str], state: Optional[str], page: int) -> str:
+    # Use a generic all-items path with keyword param to avoid brittle category ids
+    params = {
+        "ad": "offering",
+        "priceType": "fixed",
+        "sort": "rank",
+        "page": str(page),
+    }
+    if keywords:
+        params["keyword"] = "-".join(keywords.split())
+    if state:
+        params["state"] = state.upper()
+    return f"{BASE}/s-all-items/k0?{urlencode(params)}"
 
-            for ad in ad_elements:
-                try:
-                    link = ad.get_attribute("href")
-                    title = ad.find_element(By.CLASS_NAME, "user-ad-row-new-design__title-span").text
-                    price_elem = ad.find_elements(By.CLASS_NAME, "user-ad-price-new-design__price")
-                    price = price_elem[0].text if price_elem else "N/A"
-                    img_elem = ad.find_elements(By.TAG_NAME, "img")
-                    img = img_elem[0].get_attribute("src") if img_elem else ""
-                    listings.append({
-                        "title": title,
-                        "price": price,
-                        "link": link,
-                        "img": img,
-                        "vendor": "Gumtree"
-                    })
-                except:
+
+def search(
+    make: Optional[str] = None,
+    model: Optional[str] = None,
+    state: Optional[str] = None,
+    limit: int = 10,
+    page_limit: int = 2,
+    debug: bool = False,
+) -> List[Dict[str, Any]]:
+    keywords = " ".join(x for x in [make, model] if x)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-AU,en;q=0.8",
+        "Referer": BASE,
+    }
+    items: List[Dict[str, Any]] = []
+    with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True) as client:
+        for page in range(1, max(1, page_limit) + 1):
+            url = build_search_url(keywords, state, page)
+            resp = client.get(url)
+            print(f"GET {resp.request.url} -> {resp.status_code} len={len(resp.text)}")
+            if resp.status_code != 200:
+                continue
+            if debug and page == 1:
+                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir.mkdir(parents=True, exist_ok=True)
+                (snap_dir / "gumtree_page1.html").write_text(resp.text, encoding="utf-8")
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+            count_before = len(items)
+
+            # Tolerant: any anchor to a listing page containing /s-ad/
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if "/s-ad/" not in href:
                     continue
+                abs_url = urljoin(BASE, href)
+                title = (a.get_text(" ", strip=True) or "").strip()
+                # Find a container card by walking up a couple of levels
+                card = a
+                for _ in range(2):
+                    if card.parent:
+                        card = card.parent
 
-            print(f"Collected {len(ad_elements)} listings on page {page}.")
-            random_delay()
+                # Price text within the card vicinity
+                price_text = None
+                text_block = card.get_text(" ", strip=True)
+                mprice = re.search(r"\$\s*([0-9][0-9,]*)", text_block)
+                if mprice:
+                    price_text = mprice.group(0)
 
-    finally:
-        driver.quit()
+                # Location/state similarly
+                location = None
+                mstate = re.search(r"\b(ACT|NSW|NT|QLD|SA|TAS|VIC|WA)\b", text_block)
+                if mstate:
+                    location = mstate.group(1)
 
-    return listings
+                # Image thumb near the anchor
+                thumb = None
+                img = card.find("img")
+                if img:
+                    thumb = img.get("src") or (img.get("srcset") or "").split(" ")[0]
+
+                # Ad id from url
+                ad_id = None
+                mid = re.search(r"/(\d+)(?:\?.*)?$", abs_url)
+                if mid:
+                    ad_id = mid.group(1)
+                if not ad_id and card and card.has_attr("data-ad-id"):
+                    ad_id = card.get("data-ad-id")
+
+                items.append(
+                    {
+                        "url": abs_url,
+                        "title": title,
+                        "price_str": price_text,
+                        "location": location,
+                        "thumb": thumb,
+                        "ad_id": ad_id,
+                        "vendor": "Gumtree",
+                    }
+                )
+                if len(items) >= limit:
+                    print(f"gumtree tiles: {len(items) - count_before}")
+                    return items[:limit]
+
+            print(f"gumtree tiles: {len(items) - count_before}")
+    return items[:limit]
+
+
+def scrape_gumtree(max_pages: int = 2):
+    # Backward-compatible wrapper around HTTPX search
+    return search(limit=60, page_limit=max_pages)
