@@ -50,6 +50,9 @@ def main(argv: List[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Vendor ingest orchestrator")
     p.add_argument("--vendor", required=True, help="pickles|manheim|gumtree|ebay")
     p.add_argument("--limit", type=int, default=10, help="Max items to process")
+    p.add_argument("--make", type=str, default=None, help="Optional make keyword (ebay only)")
+    p.add_argument("--model", type=str, default=None, help="Optional model keyword (ebay only)")
+    p.add_argument("--debug", action="store_true", help="Vendor debug mode (e.g., save snapshots)")
     p.add_argument("--dry-run", action="store_true", help="Print first 3 normalized objects instead of saving")
     args = p.parse_args(argv)
 
@@ -58,6 +61,14 @@ def main(argv: List[str] | None = None) -> int:
 
     try:
         fn, kw = _load_scraper(vendor)
+        if vendor == "ebay":
+            kw.update({
+                "make": args.make,
+                "model": args.model,
+                "limit": limit,
+                "page_limit": 2,
+                "debug": args.debug,
+            })
         t0 = time.time()
         items = fn(**kw) if kw else fn()
         _ = time.time() - t0

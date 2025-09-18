@@ -133,8 +133,9 @@ def normalize_ebay(item: Dict[str, Any]) -> Dict[str, Any]:
     if not url:
         raise ValueError("missing source_url")
     source = "ebay"
-    source_id = item.get("item_id") or _extract_trailing_token(url, (item.get("title") or ""))
+    source_id = item.get("item_id")
     if not source_id:
+        # require item id for ebay; avoid ambiguous URLs with tracking params
         raise ValueError("missing source_id")
     out = _canon_base(source, source_id, url, item)
     title = item.get("title") or ""

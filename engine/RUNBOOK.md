@@ -11,6 +11,11 @@ Orchestrator (single vendor → normalize → pipeline):
 - `python -m engine.scraper.orchestrator --vendor pickles --limit 10`
 - `python -m engine.scraper.orchestrator --vendor ebay --limit 10`
 
+eBay with keywords and debug (saves snapshot):
+
+- `python -m engine.scraper.orchestrator --vendor ebay --make Toyota --model Corolla --limit 5 --debug`
+  - Snapshot saved to `engine/storage/snapshots/ebay_page1.html`
+
 Notes:
 - `--once` runs a single pass (default); omit to reuse later when loops are added.
 - If `SUPABASE_DB_URL` is not set, results are fetched but not persisted; vendor status is still updated.
