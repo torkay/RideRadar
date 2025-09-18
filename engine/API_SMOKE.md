@@ -27,3 +27,6 @@ Quick checks
 Notes
 - `DB_BACKEND` defaults to `postgres`. `engine/scraper/pipeline.save_normalized()` no-ops for non‑postgres backends (Mongo path reserved).
 - The API queries the `listings` table and orders by `last_seen desc`.
+
+Troubleshooting
+- If you see "SUPABASE_DB_URL not set", set a valid DSN (see examples in error) or use `DB_BACKEND=supabase_api` with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`.

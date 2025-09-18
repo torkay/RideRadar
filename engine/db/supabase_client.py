@@ -12,7 +12,11 @@ DB_URL = os.getenv("SUPABASE_DB_URL")
 def _validate_dsn(url: Optional[str]) -> str:
     if not url:
         raise RuntimeError(
-            "SUPABASE_DB_URL not set. For REST use DB_BACKEND=supabase_api."
+            "SUPABASE_DB_URL not set.\n"
+            "Examples:\n"
+            " - Direct: postgresql://postgres:<password>@db.<PROJECT_REF>.supabase.co:5432/postgres?sslmode=require\n"
+            " - Pooler: postgresql://postgres.<PROJECT_REF>:<password>@aws-<region>.pooler.supabase.com:6543/postgres?sslmode=require\n"
+            "Alternatively set DB_BACKEND=supabase_api with SUPABASE_URL and SUPABASE_SERVICE_KEY."
         )
     u = urlparse(url)
     host = u.hostname or ""
