@@ -1,71 +1,104 @@
-from ..common_utils import random_delay, setup_chrome_driver
-import time
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import httpx
+from bs4 import BeautifulSoup
+
+
+BASE = "https://www.ebay.com.au/sch/i.html"
+CARS_CAT = "29690"  # AU Motors -> Cars
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-AU,en;q=0.8",
+    "Referer": "https://www.ebay.com.au/",
+}
+
+
+def _extract_item_id(url: str) -> Optional[str]:
+    m = re.search(r"/itm/(\d+)", url or "")
+    return m.group(1) if m else None
+
+
+def search(
+    make: Optional[str] = None,
+    model: Optional[str] = None,
+    limit: int = 10,
+    page_limit: int = 2,
+    debug: bool = False,
+) -> List[Dict[str, Any]]:
+    """Fetch AU Cars via httpx + BS4. Deterministic category + lightweight pagination."""
+    keywords = " ".join(x for x in [make, model] if x)
+    items: List[Dict[str, Any]] = []
+
+    with httpx.Client(headers=HEADERS, timeout=10.0, follow_redirects=True) as client:
+        for page in range(1, max(1, page_limit) + 1):
+            params = {
+                "_nkw": keywords,
+                "_sacat": CARS_CAT,
+                "_pgn": str(page),
+                "rt": "nc",
+            }
+            resp = client.get(BASE, params=params)
+            print(f"GET {resp.request.url} -> {resp.status_code} len={len(resp.text)}")
+            if resp.status_code != 200:
+                continue
+
+            if debug and page == 1:
+                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir.mkdir(parents=True, exist_ok=True)
+                (snap_dir / "ebay_page1.html").write_text(resp.text, encoding="utf-8")
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Primary selector set
+            tiles = soup.select("li.s-item")
+            # Fallbacks
+            primary_count = len(tiles)
+            fallback_count = 0
+            if not tiles:
+                tiles = soup.select("div.s-item__wrapper")
+                fallback_count = len(tiles)
+            print(f"tiles: primary={primary_count} fallback={fallback_count}")
+
+            for li in tiles:
+                a = li.select_one("a.s-item__link") or li.find("a")
+                href = (a.get("href") if a else "") or ""
+                if not href or "ebay.com.au" not in href:
+                    continue
+                title_el = li.select_one("h3.s-item__title") or li.select_one("div.s-item__title") or a
+                title = (title_el.get_text(strip=True) if title_el else "").strip()
+                price_el = li.select_one("span.s-item__price")
+                price = price_el.get_text(strip=True) if price_el else None
+                loc_el = li.select_one("span.s-item__location") or li.select_one('[data-testid="s-item-location"]')
+                location = loc_el.get_text(strip=True) if loc_el else None
+                img_el = li.select_one("img.s-item__image-img") or li.find("img")
+                img = img_el.get("src") if img_el else None
+                item_id = _extract_item_id(href)
+                items.append(
+                    {
+                        "title": title,
+                        "price": price,
+                        "link": href,
+                        "item_id": item_id,
+                        "location": location,
+                        "img": img,
+                        "vendor": "eBay",
+                    }
+                )
+                if len(items) >= limit:
+                    return items[:limit]
+
+    return items[:limit]
+
 
 def scrape_ebay():
-    driver = setup_chrome_driver(headless=True)
-    listings = []
-
-    try:
-        base_url = (
-            "https://www.ebay.com.au/b/Cars/29690/bn_1843284"
-            "?Manufacturer=Volvo%7CAlfa%2520Romeo%7CAudi%7CBentley%7CBMW%7CBuick%7CChevrolet%7CCadillac%7CChrysler%7CCitro%25C3%25ABn%7CCorvette%7CDaihatsu%7CDatsun%7CDodge%7CFerrari%7CFiat%7CFord%7CGMC%7CGreat%2520Wall%2520Motors%7CHonda%7CHolden%7CHSV%7CHyundai%7CInfiniti%7CIsuzu%7CJaguar%7CJeep%7CKia%7CLamborghini%7CLand%2520Rover%7CLexus%7CLincoln%7CMaserati%7CMazda%7CMercedes%252DBenz%7CMG%7CMini%7CMitsubishi%7CNissan%7CPeugeot%7CPlymouth%7CPontiac%7CPorsche%7CReliant%7CRenault%7CRover%7CSaab%7C%25C5%25A0koda%7CSubaru%7CSuzuki%7CToyota%7CVolkswagen&mag=1"
-        )
-
-        page = 1
-        while True:
-            url = f"{base_url}&_pgn={page}"
-            print(f"Scraping page {page}")
-            driver.get(url)
-            random_delay()
-
-            try:
-                WebDriverWait(driver, 15).until(
-                    EC.presence_of_all_elements_located(
-                        (By.XPATH, '//*[starts-with(@class, "brwrvr__item-card brwrvr__item-card--")]')
-                    )
-                )
-                ad_elements = driver.find_elements(By.XPATH, '//*[starts-with(@class, "brwrvr__item-card brwrvr__item-card--")]')
-
-                if not ad_elements:
-                    print("⚠️ No listings found. Likely last page.")
-                    break
-
-                for ad in ad_elements:
-                    try:
-                        link_elem = ad.find_element(By.TAG_NAME, "a")
-                        link = link_elem.get_attribute("href")
-                        title = ad.text.strip()
-                        img_elem = ad.find_elements(By.TAG_NAME, "img")
-                        img = img_elem[0].get_attribute("src") if img_elem else None
-
-                        if not link or "ebay.com.au" not in link:
-                            continue
-
-                        listings.append({
-                            "title": title,
-                            "link": link,
-                            "img": img,
-                            "vendor": "eBay"
-                        })
-
-                    except:
-                        continue
-
-                if len(ad_elements) < 60:
-                    print("Likely last page due to fewer listings.")
-                    break
-
-                page += 1
-                random_delay()
-
-            except:
-                print("⚠️ Listings not loaded. Ending scrape.")
-                break
-
-    finally:
-        driver.quit()
-
-    return listings
+    """Backward‑compatible entry used elsewhere in the repo."""
+    return search(limit=60)

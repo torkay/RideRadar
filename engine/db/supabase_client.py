@@ -3,18 +3,79 @@ import os, json, hashlib
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
 from datetime import datetime
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 import psycopg
 
 DB_URL = os.getenv("SUPABASE_DB_URL")
 
-if not DB_URL:
-    raise RuntimeError("SUPABASE_DB_URL not set")
+
+def _validate_dsn(url: Optional[str]) -> str:
+    if not url:
+        raise RuntimeError(
+            "SUPABASE_DB_URL not set.\n"
+            "Examples:\n"
+            " - Direct: postgresql://postgres:<password>@db.<PROJECT_REF>.supabase.co:5432/postgres?sslmode=require\n"
+            " - Pooler: postgresql://postgres.<PROJECT_REF>:<password>@aws-<region>.pooler.supabase.com:6543/postgres?sslmode=require\n"
+            "Alternatively set DB_BACKEND=supabase_api with SUPABASE_URL and SUPABASE_SERVICE_KEY."
+        )
+    u = urlparse(url)
+    host = u.hostname or ""
+    user = u.username or ""
+
+    # Pooler host requires dotted username: postgres.<project-ref>
+    if "pooler.supabase.com" in host and "." not in user:
+        raise RuntimeError(
+            "Pooler DSN requires dotted username 'postgres.<project-ref>'. "
+            "Copy the Session Pooler DSN from the dashboard."
+        )
+
+    # Direct host: warn about resolver quirks
+    if host.startswith("db."):
+        print(
+            "[supabase_client] Note: using direct host. If you see 'nodename nor servname', "
+            "switch to the pooler host and username 'postgres.<project-ref>'."
+        )
+
+    # Ensure sslmode=require is present
+    q = dict(parse_qsl(u.query, keep_blank_values=True))
+    if "sslmode" not in q:
+        q["sslmode"] = "require"
+    new_query = urlencode(q)
+    validated = urlunparse((u.scheme, u.netloc, u.path, u.params, new_query, u.fragment))
+    return validated
+
+
+def _mask_dsn(url: str) -> str:
+    try:
+        u = urlparse(url)
+        if u.password:
+            netloc = f"{u.username}:***@{u.hostname}:{u.port or ''}"
+        else:
+            netloc = u.netloc
+        return urlunparse((u.scheme, netloc, u.path, u.params, u.query, u.fragment))
+    except Exception:
+        return "***"
+
 
 @contextmanager
 def get_conn():
-    # psycopg3 auto-enables TLS when sslmode=require in the URL
-    with psycopg.connect(DB_URL, autocommit=True) as conn:
-        yield conn
+    dsn = _validate_dsn(DB_URL)
+    try:
+        # psycopg3 auto-enables TLS when sslmode=require in the URL
+        with psycopg.connect(dsn, autocommit=True, connect_timeout=5) as conn:
+            yield conn
+    except psycopg.OperationalError as e:
+        msg = str(e)
+        if "Tenant or user not found" in msg:
+            raise RuntimeError(
+                "Pooler DSN likely missing dotted username 'postgres.<project-ref>'."
+            ) from None
+        if "nodename nor servname" in msg:
+            raise RuntimeError(
+                "DNS couldn't resolve the direct host. Use the pooler host or set DB_BACKEND=supabase_api."
+            ) from None
+        masked = _mask_dsn(dsn)
+        raise RuntimeError(f"Database connection failed for DSN: {masked}\n{msg}") from None
 
 def _band(n: Optional[int], step: int) -> str:
     if n is None:

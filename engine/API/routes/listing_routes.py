@@ -2,11 +2,12 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from uuid import UUID
 import os
-import psycopg
-from engine.db.supabase_client import get_conn
+
+DB_BACKEND = os.getenv("DB_BACKEND", "postgres").lower()
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
 
+@router.get("")
 @router.get("/")
 async def get_listings(
     make: Optional[str] = Query(None),
@@ -16,7 +17,7 @@ async def get_listings(
     price_max: Optional[int] = Query(None, ge=0),
     limit: int = Query(20, ge=1, le=200),
 ):
-    if os.getenv("DB_BACKEND", "postgres").lower() == "supabase_api":
+    if DB_BACKEND == "supabase_api":
         # Supabase REST path
         from engine.db import supabase_api as sb
         q = sb._sb.table("listings").select(
@@ -37,6 +38,8 @@ async def get_listings(
         return res.data or []
 
     # Default Postgres path via psycopg
+    import psycopg
+    from engine.db.supabase_client import get_conn
     where = []
     params = []
     if make:
@@ -74,6 +77,24 @@ async def get_listings(
 
 @router.get("/{listing_id}")
 async def get_listing_by_id(listing_id: UUID):
+    if DB_BACKEND == "supabase_api":
+        from engine.db import supabase_api as sb
+        res = (
+            sb._sb.table("listings")
+            .select(
+                "id, source, source_id, source_url, fingerprint, make, model, variant, year, price, odometer, body, trans, fuel, engine, drive, state, postcode, suburb, lat, lng, media, seller, raw, status, last_seen"
+            )
+            .eq("id", str(listing_id))
+            .limit(1)
+            .execute()
+        )
+        data = res.data or []
+        if not data:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        return data[0]
+
+    import psycopg
+    from engine.db.supabase_client import get_conn
     sql = """
       select id, source, source_id, source_url, fingerprint,
              make, model, variant, year, price, odometer,
