@@ -15,6 +15,22 @@ from bs4 import BeautifulSoup
 BASE = "https://www.gumtree.com.au"
 
 
+def _client() -> httpx.Client:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-AU,en;q=0.8",
+        "Referer": f"{BASE}/",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+    return httpx.Client(headers=headers, timeout=10.0, follow_redirects=True)
+
+
 def build_search_url(keywords: Optional[str], state: Optional[str], page: int) -> str:
     # Use a generic all-items path with keyword param to avoid brittle category ids
     params = {
@@ -48,39 +64,48 @@ def search(
         delay_hi_ms = delay_lo_ms
 
     keywords = " ".join(x for x in [make, model] if x)
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-AU,en;q=0.8",
-        "Referer": BASE,
-    }
     items: List[Dict[str, Any]] = []
-    with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True) as client:
-        # Best-effort robots check (do not fail if unreachable)
+    with _client() as client:
+        # Optional robots check
+        ignore_robots = os.getenv("GUMTREE_IGNORE_ROBOTS", "false").lower() in ("1", "true", "yes")
         try:
             rbt = client.get(urljoin(BASE, "/robots.txt"))
             if rbt.status_code == 200:
                 txt = rbt.text
                 disallows = [ln.split(":", 1)[1].strip() for ln in txt.splitlines() if ln.lower().startswith("disallow:")]
-                blocked = any(seg for seg in disallows if "/s-" in seg or "all-items" in seg)
-                print(f"robots: {len(disallows)} disallows; blocks listing paths={blocked}")
+                blocks = any(seg for seg in disallows if "/s-" in seg or "all-items" in seg)
+                if ignore_robots:
+                    print(f"robots: ignored (dev); disallows={len(disallows)} blocks_listing_paths={blocks}")
+                else:
+                    print(f"robots: disallows={len(disallows)} blocks_listing_paths={blocks}")
+                    if blocks:
+                        raise RuntimeError("robots disallow listing paths")
+        except Exception as _e:
+            # do not hard fail for robots read errors unless explicitly blocked
+            if str(_e).startswith("robots disallow"):
+                raise
+            pass
+
+        # Warmup cookies
+        try:
+            warm = client.get(BASE + "/")
+            print(f"WARMUP {warm.request.url} -> {warm.status_code} len={len(warm.text)}")
         except Exception:
             pass
         for page in range(1, max(1, page_limit) + 1):
             url = build_search_url(keywords, state, page)
             resp = client.get(url)
             print(f"GET {resp.request.url} -> {resp.status_code} len={len(resp.text)}")
-            # Detect challenge/captcha pages politely
+            # Detect challenge/captcha/403 pages politely
+            if resp.status_code == 403:
+                raise RuntimeError("challenge/403 (HTTPX)")
             lower = resp.text.lower()
             if (
                 "pardon our interruption" in lower
                 or "/splashui/challenge" in lower
                 or "captcha" in lower
             ):
-                raise RuntimeError("challenge page encountered")
+                raise RuntimeError("challenge/403 (HTTPX)")
             if resp.status_code != 200:
                 continue
             if debug and page == 1:

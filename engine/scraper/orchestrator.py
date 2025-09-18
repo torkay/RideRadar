@@ -91,9 +91,9 @@ def main(argv: List[str] | None = None) -> int:
         _ = time.time() - t0
         items = items[:limit]
     except Exception as e:
-        if vendor == "gumtree" and isinstance(e, RuntimeError) and "challenge" in str(e).lower():
+        if vendor == "gumtree" and isinstance(e, RuntimeError) and ("challenge" in str(e).lower() or "403" in str(e)):
             mark_error(vendor, "challenge")
-            print("error: gumtree challenge page encountered; aborting politely")
+            print("error: gumtree challenge/403 encountered; aborting politely")
             return 2
         mark_error(vendor, f"scrape failed: {e}")
         print(f"error: scrape failed: {e}")
