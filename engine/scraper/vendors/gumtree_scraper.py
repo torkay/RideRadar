@@ -101,8 +101,19 @@ def search(
                 # Optional Playwright fallback
                 if os.getenv("USE_PLAYWRIGHT", "false").lower() in ("1", "true", "yes"):
                     try:
-                        from engine.scraper.vendors.gumtree_playwright import fetch_page_sync
-                        rows = fetch_page_sync(url, limit=limit, timeout=15000, debug=debug)
+                        from engine.scraper.vendors.gumtree_playwright import fetch_page
+                        debug_path = None
+                        if debug:
+                            snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
+                            snap_dir.mkdir(parents=True, exist_ok=True)
+                            debug_path = str(snap_dir / "gumtree_pw_page1.html")
+                        rows = fetch_page(
+                            url,
+                            limit=limit,
+                            timeout=20000,
+                            debug_html_path=debug_path,
+                            assist=(os.getenv("PW_ASSIST", "false").lower() in ("1", "true", "yes")),
+                        )
                         print(f"fallback: playwright rows={len(rows)}")
                         return rows[:limit]
                     except Exception as _e:
@@ -116,8 +127,19 @@ def search(
             ):
                 if os.getenv("USE_PLAYWRIGHT", "false").lower() in ("1", "true", "yes"):
                     try:
-                        from engine.scraper.vendors.gumtree_playwright import fetch_page_sync
-                        rows = fetch_page_sync(url, limit=limit, timeout=15000, debug=debug)
+                        from engine.scraper.vendors.gumtree_playwright import fetch_page
+                        debug_path = None
+                        if debug:
+                            snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
+                            snap_dir.mkdir(parents=True, exist_ok=True)
+                            debug_path = str(snap_dir / "gumtree_pw_page1.html")
+                        rows = fetch_page(
+                            url,
+                            limit=limit,
+                            timeout=20000,
+                            debug_html_path=debug_path,
+                            assist=(os.getenv("PW_ASSIST", "false").lower() in ("1", "true", "yes")),
+                        )
                         print(f"fallback: playwright rows={len(rows)}")
                         return rows[:limit]
                     except Exception as _e:
@@ -126,7 +148,7 @@ def search(
             if resp.status_code != 200:
                 continue
             if debug and page == 1:
-                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                 snap_dir.mkdir(parents=True, exist_ok=True)
                 (snap_dir / "gumtree_page1.html").write_text(resp.text, encoding="utf-8")
 

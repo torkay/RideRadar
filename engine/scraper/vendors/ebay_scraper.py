@@ -52,7 +52,7 @@ def search(
                 continue
 
             if debug and page == 1:
-                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                 snap_dir.mkdir(parents=True, exist_ok=True)
                 (snap_dir / "ebay_page1.html").write_text(resp.text, encoding="utf-8")
 
