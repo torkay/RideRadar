@@ -55,14 +55,22 @@ def main(argv: List[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Vendor ingest orchestrator")
     p.add_argument("--vendor", required=True, help="pickles|manheim|gumtree|ebay")
     p.add_argument("--limit", type=int, default=10, help="Max items to process")
-    p.add_argument("--make", type=str, default=None, help="Optional make keyword (ebay/gumtree)")
-    p.add_argument("--model", type=str, default=None, help="Optional model keyword (ebay/gumtree)")
-    p.add_argument("--state", type=str, default=None, help="Optional AU state filter (gumtree)")
+    p.add_argument("--make", type=str, default=None, help="Optional make keyword (ebay/gumtree/pickles)")
+    p.add_argument("--model", type=str, default=None, help="Optional model keyword (ebay/gumtree/pickles)")
+    p.add_argument("--state", type=str, default=None, help="Optional AU state filter (gumtree/pickles)")
     p.add_argument("--debug", action="store_true", help="Vendor debug mode (e.g., save snapshots)")
     p.add_argument("--force-pw", action="store_true", help="Gumtree: force Playwright and skip HTTPX")
     p.add_argument("--pw-storage", type=str, default=None, help="Gumtree: optional Playwright storage_state path (cookies/session)")
     p.add_argument("--assist", action="store_true", help="Gumtree: manual assist prompt when using Playwright")
     p.add_argument("--dry-run", action="store_true", help="Print first 3 normalized objects instead of saving")
+    # Pickles-specific flags
+    p.add_argument("--query", type=str, default=None, help="Pickles: free-text search query")
+    p.add_argument("--page", type=int, default=1, help="Pickles: page number")
+    p.add_argument("--suburb", type=str, default=None, help="Pickles: optional suburb segment")
+    p.add_argument("--buy-now", dest="buy_now", action="store_true", help="Pickles: filter for Buy Now")
+    p.add_argument("--salvage", choices=["non-salvage", "salvage", "both"], default="non-salvage", help="Pickles: salvage filter")
+    p.add_argument("--wovr", choices=["none", "repairable", "statutory"], default="none", help="Pickles: WOVR filter")
+    p.add_argument("--double-encode-filter", action="store_true", help="Pickles: double-encode filter value (rare)")
     args = p.parse_args(argv)
 
     vendor = args.vendor.lower().strip()
@@ -118,7 +126,34 @@ def main(argv: List[str] | None = None) -> int:
             args.make, args.model, args.state, limit, args.debug))
         from engine.scraper.vendors import pickles_http as pk
         try:
-            url = pk.build_search_url(args.make, args.model, args.state, page=1)
+            # Build filters for Pickles
+            filt: Dict[str, List[str]] = {}
+            if args.salvage == "non-salvage":
+                filt["salvage"] = ["non-Salvage"]
+            elif args.salvage == "salvage":
+                filt["salvage"] = ["Salvage"]
+            elif args.salvage == "both":
+                filt["salvage"] = ["non-Salvage", "Salvage"]
+            if args.buy_now:
+                filt["buyMethod"] = ["Buy Now"]
+            if args.wovr == "repairable":
+                filt["wovr"] = ["Repairable Write-Off"]
+            elif args.wovr == "statutory":
+                filt["wovr"] = ["Statutory Write-Off"]
+
+            url = pk.build_search_url(
+                args.make,
+                args.model,
+                args.state,
+                suburb=args.suburb,
+                query=args.query,
+                page=args.page,
+                limit=args.limit,
+                filters=(filt or None),
+                double_encode_filter=args.double_encode_filter,
+            )
+            if args.debug:
+                print(f"DEBUG pickles URL: {url}")
             html = pk.fetch_html(url)
             if args.debug:
                 snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
