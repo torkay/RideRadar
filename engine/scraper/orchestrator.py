@@ -29,9 +29,9 @@ def _load_scraper(vendor: str) -> Tuple[Callable, Dict]:
         from engine.scraper.vendors.manheim_scraper import scrape_manheim as fn
         return fn, {}
     if vendor == "gumtree":
-        from engine.scraper.vendors.gumtree_scraper import scrape_gumtree as fn
-        # keep it light for now
-        return fn, {"max_pages": 1}
+        # Use HTTPX-based search with keyword/state support
+        from engine.scraper.vendors.gumtree_scraper import search as fn
+        return fn, {}
     if vendor == "ebay":
         if os.getenv("USE_EBAY_API", "").lower() in ("1", "true", "yes"):
             from engine.integrations.ebay_api import search_items as fn
