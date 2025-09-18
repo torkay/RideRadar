@@ -1,71 +1,99 @@
-from ..common_utils import random_delay, setup_chrome_driver
-import time
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from __future__ import annotations
+
+import re
+from typing import Any, Dict, List, Optional
+
+import httpx
+from bs4 import BeautifulSoup
+
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+def _extract_item_id(url: str) -> Optional[str]:
+    m = re.search(r"/itm/(\d+)", url or "")
+    return m.group(1) if m else None
+
+
+def search(make: Optional[str] = None, model: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+    """Fetch AU eBay Cars results via HTTPX + BeautifulSoup (no Selenium)."""
+    q = " ".join([p for p in [make, model] if p])
+    params = {
+        "_dcat": "29690",  # Cars category
+        "_sop": "10",      # newly listed first
+    }
+    if q:
+        params["_nkw"] = q
+
+    url = "https://www.ebay.com.au/sch/29690/i.html"
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "en-AU,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    }
+    items: List[Dict[str, Any]] = []
+    with httpx.Client(headers=headers, timeout=15.0, follow_redirects=True) as client:
+        resp = client.get(url, params=params)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Primary: legacy result tiles
+        for li in soup.select("li.s-item"):
+            a = li.select_one("a.s-item__link")
+            if not a:
+                continue
+            href = a.get("href") or ""
+            title_el = li.select_one("h3.s-item__title") or li.select_one("div.s-item__title")
+            title = (title_el.get_text(strip=True) if title_el else "").strip()
+            price_el = li.select_one("span.s-item__price")
+            price = price_el.get_text(strip=True) if price_el else None
+            loc_el = li.select_one("span.s-item__location")
+            location = loc_el.get_text(strip=True) if loc_el else None
+            img_el = li.select_one("img.s-item__image-img")
+            img = img_el.get("src") if img_el else None
+            item_id = _extract_item_id(href)
+            if not href or "ebay.com.au" not in href:
+                continue
+            items.append({
+                "title": title,
+                "price": price,
+                "link": href,
+                "item_id": item_id,
+                "location": location,
+                "img": img,
+                "vendor": "eBay",
+            })
+            if len(items) >= limit:
+                return items
+
+        # Fallback: new browse tiles
+        if not items:
+            for card in soup.select('[class^="brwrvr__item-card brwrvr__item-card--"]'):
+                a = card.find("a")
+                href = a.get("href") if a else None
+                if not href:
+                    continue
+                img_el = card.find("img")
+                img = img_el.get("src") if img_el else None
+                title = card.get_text(separator=" ", strip=True)
+                item_id = _extract_item_id(href)
+                items.append({
+                    "title": title,
+                    "price": None,
+                    "link": href,
+                    "item_id": item_id,
+                    "location": None,
+                    "img": img,
+                    "vendor": "eBay",
+                })
+                if len(items) >= limit:
+                    break
+    return items
+
 
 def scrape_ebay():
-    driver = setup_chrome_driver(headless=True)
-    listings = []
-
-    try:
-        base_url = (
-            "https://www.ebay.com.au/b/Cars/29690/bn_1843284"
-            "?Manufacturer=Volvo%7CAlfa%2520Romeo%7CAudi%7CBentley%7CBMW%7CBuick%7CChevrolet%7CCadillac%7CChrysler%7CCitro%25C3%25ABn%7CCorvette%7CDaihatsu%7CDatsun%7CDodge%7CFerrari%7CFiat%7CFord%7CGMC%7CGreat%2520Wall%2520Motors%7CHonda%7CHolden%7CHSV%7CHyundai%7CInfiniti%7CIsuzu%7CJaguar%7CJeep%7CKia%7CLamborghini%7CLand%2520Rover%7CLexus%7CLincoln%7CMaserati%7CMazda%7CMercedes%252DBenz%7CMG%7CMini%7CMitsubishi%7CNissan%7CPeugeot%7CPlymouth%7CPontiac%7CPorsche%7CReliant%7CRenault%7CRover%7CSaab%7C%25C5%25A0koda%7CSubaru%7CSuzuki%7CToyota%7CVolkswagen&mag=1"
-        )
-
-        page = 1
-        while True:
-            url = f"{base_url}&_pgn={page}"
-            print(f"Scraping page {page}")
-            driver.get(url)
-            random_delay()
-
-            try:
-                WebDriverWait(driver, 15).until(
-                    EC.presence_of_all_elements_located(
-                        (By.XPATH, '//*[starts-with(@class, "brwrvr__item-card brwrvr__item-card--")]')
-                    )
-                )
-                ad_elements = driver.find_elements(By.XPATH, '//*[starts-with(@class, "brwrvr__item-card brwrvr__item-card--")]')
-
-                if not ad_elements:
-                    print("⚠️ No listings found. Likely last page.")
-                    break
-
-                for ad in ad_elements:
-                    try:
-                        link_elem = ad.find_element(By.TAG_NAME, "a")
-                        link = link_elem.get_attribute("href")
-                        title = ad.text.strip()
-                        img_elem = ad.find_elements(By.TAG_NAME, "img")
-                        img = img_elem[0].get_attribute("src") if img_elem else None
-
-                        if not link or "ebay.com.au" not in link:
-                            continue
-
-                        listings.append({
-                            "title": title,
-                            "link": link,
-                            "img": img,
-                            "vendor": "eBay"
-                        })
-
-                    except:
-                        continue
-
-                if len(ad_elements) < 60:
-                    print("Likely last page due to fewer listings.")
-                    break
-
-                page += 1
-                random_delay()
-
-            except:
-                print("⚠️ Listings not loaded. Ending scrape.")
-                break
-
-    finally:
-        driver.quit()
-
-    return listings
+    """Backward‑compatible entry used elsewhere in the repo."""
+    return search(limit=60)

@@ -33,8 +33,8 @@ def _load_scraper(vendor: str) -> Tuple[Callable, Dict]:
         # keep it light for now
         return fn, {"max_pages": 1}
     if vendor == "ebay":
-        from engine.scraper.vendors.ebay_scraper import scrape_ebay as fn
-        return fn, {}
+        from engine.scraper.vendors.ebay_scraper import search as fn
+        return fn, {"limit": 50}
     raise ValueError(f"Unknown vendor: {vendor}")
 
 
@@ -42,6 +42,7 @@ _NORMALIZERS = {
     "pickles": norm.normalize_pickles,
     "manheim": norm.normalize_manheim,
     "gumtree": norm.normalize_gumtree,
+    "ebay": norm.normalize_ebay,
 }
 
 
@@ -120,4 +121,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Interrupted.")
         sys.exit(130)
-

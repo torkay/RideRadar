@@ -9,6 +9,7 @@ Run a lightweight scrape and persistence pass per specified vendors (best-effort
 Orchestrator (single vendor → normalize → pipeline):
 
 - `python -m engine.scraper.orchestrator --vendor pickles --limit 10`
+- `python -m engine.scraper.orchestrator --vendor ebay --limit 10`
 
 Notes:
 - `--once` runs a single pass (default); omit to reuse later when loops are added.
