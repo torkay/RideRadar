@@ -89,7 +89,7 @@ def _absolutize_media(media: Optional[list]) -> list:
     absolutized = []
     for item in media:
         abs_url = _absolutize_url(item)
-        if abs_url:
+        if abs_url and "watchlist" not in abs_url:
             absolutized.append(abs_url)
     return absolutized
 
@@ -145,8 +145,8 @@ def normalize_pickles(item: Dict[str, Any]) -> Dict[str, Any]:
         media_urls.append(item["thumb"])
     out["media"] = _absolutize_media(media_urls)
 
-    # Odometer if provided in card (rare)
-    if item.get("odometer"):
+    # Odometer if provided in card/detail (km)
+    if item.get("odometer") is not None:
         out["odometer"] = _to_int(item["odometer"])
 
     # Price if present (prefer explicit int)
@@ -179,6 +179,20 @@ def normalize_pickles(item: Dict[str, Any]) -> Dict[str, Any]:
     sb = item.get("suburb") or None
     if isinstance(sb, str) and sb.strip():
         out["suburb"] = sb.strip()
+
+    # Hydrated detail fields
+    if item.get("body"):
+        out["body"] = str(item["body"]).strip()
+    if item.get("trans"):
+        out["trans"] = str(item["trans"]).strip()
+    if item.get("fuel"):
+        out["fuel"] = str(item["fuel"]).strip()
+    if item.get("engine"):
+        out["engine"] = str(item["engine"]).strip()
+    if item.get("drive"):
+        out["drive"] = str(item["drive"]).strip()
+    if item.get("variant"):
+        out["variant"] = str(item["variant"]).strip()
 
     # Make/model guesses
     mk_guess = _format_guess(item.get("make_guess"))
