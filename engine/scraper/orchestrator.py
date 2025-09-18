@@ -78,7 +78,7 @@ def main(argv: List[str] | None = None) -> int:
             url = at.build_search_url(args.make, args.model, args.state, page=1)
             html = at.fetch_html(url)
             if args.debug:
-                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                 snap_dir.mkdir(parents=True, exist_ok=True)
                 (snap_dir / "autotrader_page1.html").write_text(html, encoding="utf-8")
             rows_raw = at.parse_list(html, limit=limit, debug=args.debug)
@@ -121,7 +121,7 @@ def main(argv: List[str] | None = None) -> int:
             url = pk.build_search_url(args.make, args.model, args.state, page=1)
             html = pk.fetch_html(url)
             if args.debug:
-                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                 snap_dir.mkdir(parents=True, exist_ok=True)
                 (snap_dir / "pickles_page1.html").write_text(html, encoding="utf-8")
             rows_raw = pk.parse_list(html, limit=limit, debug=args.debug)
@@ -183,7 +183,7 @@ def main(argv: List[str] | None = None) -> int:
                     debug_path = None
                     if args.debug:
                         snap_dir = (
-                            Path(__file__).resolve().parents[2]
+                            Path(__file__).resolve().parents[1]
                             / "storage"
                             / "snapshots"
                         )

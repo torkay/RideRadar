@@ -104,7 +104,7 @@ def search(
                         from engine.scraper.vendors.gumtree_playwright import fetch_page
                         debug_path = None
                         if debug:
-                            snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                            snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                             snap_dir.mkdir(parents=True, exist_ok=True)
                             debug_path = str(snap_dir / "gumtree_pw_page1.html")
                         rows = fetch_page(
@@ -130,7 +130,7 @@ def search(
                         from engine.scraper.vendors.gumtree_playwright import fetch_page
                         debug_path = None
                         if debug:
-                            snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                            snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                             snap_dir.mkdir(parents=True, exist_ok=True)
                             debug_path = str(snap_dir / "gumtree_pw_page1.html")
                         rows = fetch_page(
@@ -148,7 +148,7 @@ def search(
             if resp.status_code != 200:
                 continue
             if debug and page == 1:
-                snap_dir = Path(__file__).resolve().parents[2] / "storage" / "snapshots"
+                snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
                 snap_dir.mkdir(parents=True, exist_ok=True)
                 (snap_dir / "gumtree_page1.html").write_text(resp.text, encoding="utf-8")
 
