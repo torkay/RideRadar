@@ -98,6 +98,15 @@ def search(
             print(f"GET {resp.request.url} -> {resp.status_code} len={len(resp.text)}")
             # Detect challenge/captcha/403 pages politely
             if resp.status_code == 403:
+                # Optional Playwright fallback
+                if os.getenv("USE_PLAYWRIGHT", "false").lower() in ("1", "true", "yes"):
+                    try:
+                        from engine.scraper.vendors.gumtree_playwright import fetch_page_sync
+                        rows = fetch_page_sync(url, limit=limit, timeout=15000, debug=debug)
+                        print(f"fallback: playwright rows={len(rows)}")
+                        return rows[:limit]
+                    except Exception as _e:
+                        raise RuntimeError("challenge/403 (HTTPX)") from _e
                 raise RuntimeError("challenge/403 (HTTPX)")
             lower = resp.text.lower()
             if (
@@ -105,6 +114,14 @@ def search(
                 or "/splashui/challenge" in lower
                 or "captcha" in lower
             ):
+                if os.getenv("USE_PLAYWRIGHT", "false").lower() in ("1", "true", "yes"):
+                    try:
+                        from engine.scraper.vendors.gumtree_playwright import fetch_page_sync
+                        rows = fetch_page_sync(url, limit=limit, timeout=15000, debug=debug)
+                        print(f"fallback: playwright rows={len(rows)}")
+                        return rows[:limit]
+                    except Exception as _e:
+                        raise RuntimeError("challenge/403 (HTTPX)") from _e
                 raise RuntimeError("challenge/403 (HTTPX)")
             if resp.status_code != 200:
                 continue
