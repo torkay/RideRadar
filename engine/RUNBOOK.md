@@ -17,6 +17,10 @@ Playwright fallback (optional, dev):
 - `pip install playwright && python -m playwright install chromium`
 - Enable fallback on Gumtree: `export USE_PLAYWRIGHT=true`
 - Headful browser in dev (default): `export PW_HEADLESS=false`
+  - Persistent profile and manual assist (first-run):
+    - `export PW_PROFILE_DIR=~/.rideradar/pw-gumtree`
+    - `export PW_ASSIST=true`
+    - Run: `python -m engine.scraper.orchestrator --vendor gumtree --make Toyota --model Corolla --state NSW --limit 5 --debug`
 
 eBay with keywords and debug (saves snapshot):
 
