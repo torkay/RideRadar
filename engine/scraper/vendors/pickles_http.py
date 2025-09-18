@@ -3,30 +3,88 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, quote
 
 import httpx
 from bs4 import BeautifulSoup
 
 
 BASE = "https://www.pickles.com.au"
+_AU_STATES = {"nsw", "qld", "vic", "sa", "wa", "tas", "act", "nt"}
 
 
-def build_search_url(make: Optional[str], model: Optional[str], state: Optional[str], page: int = 1) -> str:
-    """
-    Construct a simple SSR search URL for Pickles AU cars.
-    Example (best‑effort): https://www.pickles.com.au/cars?keywords=toyota%20corolla&state=NSW&page=1
-    """
-    kw = " ".join(x for x in [make, model] if x)
-    params = {}
-    if kw:
-        params["keywords"] = kw
-    if state:
-        params["state"] = state.upper()
-    if page and page > 1:
-        params["page"] = str(page)
-    qs = f"?{urlencode(params)}" if params else ""
-    return urljoin(BASE, f"/cars{qs}")
+def _slug(seg: Optional[str]) -> Optional[str]:
+    if not seg:
+        return None
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", seg.strip().lower()).strip("-")
+    return s or None
+
+
+def _make_path(make: Optional[str], model: Optional[str], state: Optional[str], suburb: Optional[str]) -> str:
+    parts: List[str] = ["used", "search", "cars"]
+    m = _slug(make)
+    mdl = _slug(model)
+    st = (_slug(state) or "")
+    sub = _slug(suburb)
+    if m:
+        parts.append(m)
+    if mdl:
+        parts.append(mdl)
+    if st and st in _AU_STATES:
+        parts += ["state", st]
+        if sub:
+            parts.append(sub)
+    return "/" + "/".join(parts)
+
+
+def _build_filter_value(filters: Dict[str, List[str]]) -> str:
+    parts: List[str] = []
+    and_i = 0
+    for key, values in filters.items():
+        for j, val in enumerate(values):
+            parts.append(f"and[{and_i}][or][{j}][{key}]={val}")
+        and_i += 1
+    return "&".join(parts)
+
+
+def build_search_url(
+    make: Optional[str],
+    model: Optional[str],
+    state: Optional[str],
+    *,
+    suburb: Optional[str] = None,
+    query: Optional[str] = None,
+    page: int = 1,
+    limit: Optional[int] = None,
+    filters: Optional[Dict[str, List[str]]] = None,
+    double_encode_filter: bool = False,
+) -> str:
+    path = _make_path(make, model, state, suburb)
+    q = (query or " ".join([x for x in [make, model] if x]) or "").strip()
+    params: Dict[str, str] = {}
+    # Always include page=1 for consistency
+    params["page"] = str(page or 1)
+    if q:
+        params["search"] = q
+    if limit and limit > 0:
+        params["limit"] = str(limit)
+    if filters:
+        raw = _build_filter_value(filters)
+        # Encode once so that internal & becomes %26 and [] become %5B/%5D
+        encoded_once = urlencode({"filter": raw}, quote_via=quote)
+        filter_value = encoded_once.split("=", 1)[1]
+        if double_encode_filter:
+            filter_value = filter_value.replace("%", "%25")
+        params["filter"] = filter_value
+
+    qpairs: List[str] = []
+    for k, v in params.items():
+        if k == "filter":
+            qpairs.append(f"filter={v}")
+        else:
+            qpairs.append(urlencode({k: v}, quote_via=quote))
+    qs = "&".join(qpairs)
+    return f"{BASE}{path}?{qs}"
 
 
 def fetch_html(url: str) -> str:
@@ -92,65 +150,65 @@ def parse_list(html: str, limit: int, debug: bool = False) -> List[Dict[str, Any
     soup = BeautifulSoup(html, "html.parser")
     rows: List[Dict[str, Any]] = []
 
-    # Try anchors to known vehicle detail paths
-    anchors = soup.select("a[href*='/cars/item/'], a[href^='/car/'], a[href*='/vehicles/']")
+    anchors = soup.find_all("a", href=True)
     seen: set[str] = set()
     for a in anchors:
-        href = a.get("href")
-        if not href:
+        href = a.get("href") or ""
+        if not re.match(r"^/cars/item/[^/]+/?$", href, flags=re.IGNORECASE):
             continue
-        url = _abs(href)
-        if url in seen:
+        url = _abs(href.split("?")[0])
+        if url in seen or url.rstrip("/") == BASE:
             continue
         seen.add(url)
+        # Extract id/slug from url tail
+        sid = href.rstrip("/").split("/")[-1]
+        # Title
         title = (a.get_text(" ", strip=True) or "").strip()
-        # Find price/location near the card
+        # Card container
         card = a
         for _ in range(3):
-            if card.parent:
+            if getattr(card, "parent", None):
                 card = card.parent
         text = card.get_text(" ", strip=True)
+        # Price
         price_str = None
-        mprice = re.search(r"\$\s*([0-9][0-9,]*)", text)
+        mprice = re.search(r"\$[\s0-9,\.]+", text)
         if mprice:
             price_str = mprice.group(0)
+        # Location
         location = None
         mstate = re.search(r"\b(ACT|NSW|NT|QLD|SA|TAS|VIC|WA)\b", text)
         if mstate:
             location = mstate.group(1)
+        # Thumb
         thumb = None
         img = card.find("img")
         if img:
             thumb = img.get("src") or (img.get("srcset") or "").split(" ")[0]
-        # Guesses
-        year_guess = None
-        myear = re.search(r"\b(19\d{2}|20\d{2})\b", title)
-        if myear:
-            year_guess = myear.group(1)
-        # Attempt id from url
-        sid = None
-        mid = re.search(r"/item/([^/?#]+)", url)
-        if mid:
-            sid = mid.group(1)
+        # Year guess from title
+        yguess = None
+        my = re.search(r"\b(19\d{2}|20\d{2})\b", title)
+        if my:
+            yguess = my.group(1)
 
         rows.append(
             {
+                "url": url,
+                "source_id_guess": sid,
                 "title": title,
                 "price_str": price_str,
-                "url": url,
                 "thumb": thumb,
                 "location": location,
-                "year_guess": year_guess,
+                "year_guess": yguess,
                 "make_guess": None,
                 "model_guess": None,
-                "source_id_guess": sid,
             }
         )
         if len(rows) >= limit:
             break
 
-    # Fallback to JSON-LD if no anchors parsed
     if not rows:
+        # Fallback to JSON-LD
         rows = _from_jsonld(soup)[:limit]
 
     if not rows:
@@ -160,4 +218,3 @@ def parse_list(html: str, limit: int, debug: bool = False) -> List[Dict[str, Any
 
 def to_raw(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
-
