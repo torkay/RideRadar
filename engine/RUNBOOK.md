@@ -17,6 +17,52 @@ Orchestrator (single vendor → normalize → pipeline):
   - Prints the exact Pickles URL and saves snapshot to `engine/storage/snapshots/pickles_page1.html`
 - `python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --salvage both --page 1 --debug`
 - `python -m engine.scraper.orchestrator --vendor pickles --make Toyota --model Hilux --state NSW --suburb "wagga wagga" --query "toyota corolla" --salvage salvage --wovr repairable --debug`
+
+Debug/troubleshooting notes:
+- Expect lines like: `DEBUG pickles URL: ...`
+- Then: `DEBUG pickles status=200 len=... url=...` and a preview line.
+- Tile counts: `DEBUG pickles tiles: primary=N fallback_href=M ldjson=K kept=T` and `DEBUG pickles kept_real=R dropped_category=C [hydrated=H]`.
+- Use `--dry-run` to print the first 3 normalized rows without upserting.
+
+Examples:
+
+1) Dry-run search only
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --make Toyota --model Corolla --state QLD --page 1 --limit 20 --debug --dry-run
+```
+
+2) Hydrated details (fills missing title/price)
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --salvage both --page 1 --debug --dry-run --hydrate-details
+```
+
+Price-first defaults and including unpriced:
+
+- Defaults (require price → auto Buy Now filter):
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --page 1 --limit 10 --debug --dry-run
+```
+- Yields Buy Now listings with numeric prices; summary line reflects the current DB backend.
+
+- Include unpriced (any sale method):
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --page 1 --limit 10 --debug --dry-run --buy-method any --no-require-price --include-unpriced --hydrate-details
+```
+- Keeps proposed/auction/tender rows (price may be None) and logs detected `sale_method` when hydration is enabled.
+
+- Include “Enquire Now” listings (unpriced allowed):
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --page 1 --limit 10 --hydrate-details --allow-enquire --no-require-price --include-unpriced --debug --dry-run
+```
+ - Preserves rows with `sale_method='enquire'` and `price=None`; summary shows `sale_method_enquire`/`enquire_unpriced` counters.
+
+Pickles scraper notes:
+- To surface `sale_method` at the top level, export `LISTINGS_ENABLE_SALE_METHOD_COLUMN=true` and add the column via `ALTER TABLE listings ADD COLUMN sale_method text;` (optional).
 ### Autotrader (HTTPX, SSR)
 
 - `python -m engine.scraper.orchestrator --vendor autotrader --make Toyota --model Corolla --state QLD --limit 5 --debug`

@@ -13,6 +13,7 @@ import argparse
 import os
 import sys
 import time
+from collections import Counter
 from typing import Callable, Dict, List, Tuple
 from pathlib import Path
 
@@ -67,10 +68,17 @@ def main(argv: List[str] | None = None) -> int:
     p.add_argument("--query", type=str, default=None, help="Pickles: free-text search query")
     p.add_argument("--page", type=int, default=1, help="Pickles: page number")
     p.add_argument("--suburb", type=str, default=None, help="Pickles: optional suburb segment")
-    p.add_argument("--buy-now", dest="buy_now", action="store_true", help="Pickles: filter for Buy Now")
+    p.add_argument("--buy-now", dest="buy_now", action="store_true", help="Pickles: legacy flag for Buy Now (prefer --buy-method)")
     p.add_argument("--salvage", choices=["non-salvage", "salvage", "both"], default="non-salvage", help="Pickles: salvage filter")
     p.add_argument("--wovr", choices=["none", "repairable", "statutory"], default="none", help="Pickles: WOVR filter")
     p.add_argument("--double-encode-filter", action="store_true", help="Pickles: double-encode filter value (rare)")
+    p.add_argument("--hydrate-details", dest="hydrate_details", action="store_true", help="Pickles: fetch detail pages to fill title/price if missing")
+    p.add_argument("--buy-method", choices=["any", "buy_now"], default=None, help="Pickles: buy method filter (default: buy_now if require-price else any)")
+    p.add_argument("--require-price", dest="require_price", action="store_true", help="Pickles: require numeric price (default)")
+    p.add_argument("--no-require-price", dest="require_price", action="store_false", help="Pickles: allow missing price")
+    p.set_defaults(require_price=True)
+    p.add_argument("--include-unpriced", dest="include_unpriced", action="store_true", help="Pickles: include unpriced rows when price not required")
+    p.add_argument("--allow-enquire", dest="allow_enquire", action="store_true", help="Pickles: allow 'Enquire Now' listings without prices when combined with unpriced flags")
     args = p.parse_args(argv)
 
     vendor = args.vendor.lower().strip()
@@ -134,8 +142,13 @@ def main(argv: List[str] | None = None) -> int:
                 filt["salvage"] = ["Salvage"]
             elif args.salvage == "both":
                 filt["salvage"] = ["non-Salvage", "Salvage"]
-            if args.buy_now:
-                filt["buyMethod"] = ["Buy Now"]
+            # Compute buy_method default from flags
+            final_buy_method = args.buy_method
+            if final_buy_method is None:
+                if args.buy_now:
+                    final_buy_method = "buy_now"
+                else:
+                    final_buy_method = "buy_now" if args.require_price else "any"
             if args.wovr == "repairable":
                 filt["wovr"] = ["Repairable Write-Off"]
             elif args.wovr == "statutory":
@@ -151,19 +164,47 @@ def main(argv: List[str] | None = None) -> int:
                 limit=args.limit,
                 filters=(filt or None),
                 double_encode_filter=args.double_encode_filter,
+                buy_method=final_buy_method,
             )
             if args.debug:
                 print(f"DEBUG pickles URL: {url}")
-            html = pk.fetch_html(url)
-            if args.debug:
-                snap_dir = Path(__file__).resolve().parents[1] / "storage" / "snapshots"
-                snap_dir.mkdir(parents=True, exist_ok=True)
-                (snap_dir / "pickles_page1.html").write_text(html, encoding="utf-8")
-            rows_raw = pk.parse_list(html, limit=limit, debug=args.debug)
+            html = pk.fetch_html(url, debug=args.debug)
+            rows_raw, parse_stats = pk.parse_list(
+                html,
+                limit=limit,
+                debug=args.debug,
+                hydrate=args.hydrate_details,
+                assume_buy_now=(final_buy_method == "buy_now"),
+            )
+            drop_counters = Counter(parse_stats)
         except Exception as e:
             mark_error("pickles", str(e))
             print("summary vendor=pickles fetched=0 normalized_ok=0 normalized_err=0 upserted=0 backend=%s mode=httpx error=%s" % (os.getenv('DB_BACKEND','?'), e))
             return 2
+        kept_real_initial = drop_counters.get("kept_real", len(rows_raw))
+        rows_candidates = list(rows_raw)
+        rows_filtered: List[Dict[str, Any]] = []
+        for raw in rows_candidates:
+            price_val = raw.get("price")
+            require_price = args.require_price or (not args.require_price and not args.include_unpriced)
+            sale_method = (raw.get("sale_method") or "").lower()
+            is_enquire = sale_method == "enquire"
+            if require_price and price_val is None:
+                if is_enquire and args.allow_enquire and args.include_unpriced:
+                    rows_filtered.append(raw)
+                    continue
+                if is_enquire:
+                    drop_counters["dropped_enquire_unpriced"] += 1
+                    if args.debug:
+                        print(f"DEBUG pickles drop[enquire_unpriced]: url={raw.get('url')}")
+                else:
+                    drop_counters["dropped_missing_price"] += 1
+                    if args.debug:
+                        print(f"DEBUG pickles drop[missing_price]: url={raw.get('url')}")
+                continue
+            rows_filtered.append(raw)
+        rows_raw = rows_filtered
+        drop_counters["kept_after_filters"] = len(rows_raw)
         n_ok = 0
         n_err = 0
         normalized = []
@@ -172,17 +213,59 @@ def main(argv: List[str] | None = None) -> int:
                 n = norm.normalize_pickles(r)
                 normalized.append(n)
                 n_ok += 1
-            except Exception:
+            except Exception as exc:
                 n_err += 1
+                drop_counters["dropped_normalize_error"] += 1
+                if args.debug:
+                    print(f"DEBUG pickles drop[normalize_error]: url={r.get('url')} error={exc}")
+        # Price-first behavior: filter rows based on price flags
+        if args.require_price:
+            normalized = [n for n in normalized if n.get("price") is not None]
+        elif not args.include_unpriced:
+            normalized = [n for n in normalized if n.get("price") is not None]
+
+        n_ok = len(normalized)
+
         upserted = 0
-        if not args.dry_run:
+        if args.dry_run:
+            for n in normalized[:3]:
+                print(n)
+        else:
             upserted = save_many(normalized)
         if upserted > 0:
             mark_success("pickles")
         else:
             mark_error("pickles", "no results")
-        print("summary vendor=pickles fetched=%d normalized_ok=%d normalized_err=%d upserted=%d backend=%s mode=httpx" % (
-            len(rows_raw), n_ok, n_err, upserted, os.getenv('DB_BACKEND','?')))
+        drop_keys = [
+            "dropped_category",
+            "dropped_duplicate",
+            "dropped_price_out_of_range",
+            "dropped_missing_price",
+            "dropped_enquire_unpriced",
+            "dropped_parse_error",
+            "dropped_normalize_error",
+            "sale_method_enquire",
+            "enquire_unpriced",
+        ]
+        if drop_counters.get("hydrated"):
+            drop_keys.append("hydrated")
+        drop_summary = " ".join(
+            f"{k}={drop_counters.get(k, 0)}" for k in drop_keys if drop_counters.get(k, 0)
+        )
+        kept_after_filters = drop_counters.get("kept_after_filters", len(rows_raw))
+        print(
+            "summary vendor=pickles fetched=%d normalized_ok=%d normalized_err=%d upserted=%d backend=%s mode=httpx kept_real=%d kept_after=%d%s"
+            % (
+                len(rows_candidates),
+                n_ok,
+                n_err,
+                upserted,
+                os.getenv('DB_BACKEND','?'),
+                kept_real_initial,
+                kept_after_filters,
+                (" drops[" + drop_summary + "]") if drop_summary else "",
+            )
+        )
         return 0
 
     try:

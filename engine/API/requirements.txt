@@ -2,3 +2,6 @@ fastapi
 uvicorn[standard]
 pydantic
 supabase>=2,<3
+httpx>=0.27,<1
+beautifulsoup4>=4.12,<5
+playwright>=1.46,<2
