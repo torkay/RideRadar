@@ -47,6 +47,7 @@ def search(
                 "rt": "nc",
             }
             resp = client.get(BASE, params=params)
+            print(f"GET {resp.request.url} -> {resp.status_code} len={len(resp.text)}")
             if resp.status_code != 200:
                 continue
 
@@ -60,8 +61,12 @@ def search(
             # Primary selector set
             tiles = soup.select("li.s-item")
             # Fallbacks
+            primary_count = len(tiles)
+            fallback_count = 0
             if not tiles:
                 tiles = soup.select("div.s-item__wrapper")
+                fallback_count = len(tiles)
+            print(f"tiles: primary={primary_count} fallback={fallback_count}")
 
             for li in tiles:
                 a = li.select_one("a.s-item__link") or li.find("a")
