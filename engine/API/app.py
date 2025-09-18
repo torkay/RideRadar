@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import listing_routes
 from .routes import health_routes
+from .routes import deeplink_routes
+from .routes import health_routes
 import os
 
 app = FastAPI(title="RideRadar API")
@@ -23,6 +25,7 @@ app.add_middleware(
 # Register routes
 app.include_router(listing_routes.router)
 app.include_router(health_routes.router)
+app.include_router(deeplink_routes.router)
 
 @app.get("/")
 def read_root():
