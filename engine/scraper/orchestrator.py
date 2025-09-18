@@ -33,8 +33,12 @@ def _load_scraper(vendor: str) -> Tuple[Callable, Dict]:
         # keep it light for now
         return fn, {"max_pages": 1}
     if vendor == "ebay":
-        from engine.scraper.vendors.ebay_scraper import search as fn
-        return fn, {"limit": 50}
+        if os.getenv("USE_EBAY_API", "").lower() in ("1", "true", "yes"):
+            from engine.integrations.ebay_api import search_items as fn
+            return fn, {"limit": 50}
+        else:
+            from engine.scraper.vendors.ebay_scraper import search as fn
+            return fn, {"limit": 50}
     raise ValueError(f"Unknown vendor: {vendor}")
 
 
@@ -61,7 +65,7 @@ def main(argv: List[str] | None = None) -> int:
 
     try:
         fn, kw = _load_scraper(vendor)
-        if vendor == "ebay":
+        if vendor == "ebay" and os.getenv("USE_EBAY_API", "").lower() not in ("1", "true", "yes"):
             kw.update({
                 "make": args.make,
                 "model": args.model,
@@ -69,6 +73,9 @@ def main(argv: List[str] | None = None) -> int:
                 "page_limit": 2,
                 "debug": args.debug,
             })
+        if vendor == "ebay" and os.getenv("USE_EBAY_API", "").lower() in ("1", "true", "yes"):
+            q = " ".join(x for x in [args.make, args.model] if x)
+            kw.update({"q": q, "limit": limit})
         t0 = time.time()
         items = fn(**kw) if kw else fn()
         _ = time.time() - t0
@@ -79,11 +86,16 @@ def main(argv: List[str] | None = None) -> int:
         return 2
 
     fetched = len(items)
+    if fetched == 0:
+        mark_error(vendor, "no results")
     norm_ok = 0
     norm_err = 0
     upserted = 0
 
-    normalizer = _NORMALIZERS.get(vendor)
+    if vendor == "ebay" and os.getenv("USE_EBAY_API", "").lower() in ("1", "true", "yes"):
+        from engine.integrations.ebay_api import normalize as normalizer  # type: ignore
+    else:
+        normalizer = _NORMALIZERS.get(vendor)
     if not normalizer:
         print(f"warning: no normalizer for {vendor}; skipping")
         return 0
@@ -115,7 +127,7 @@ def main(argv: List[str] | None = None) -> int:
         except Exception as e:
             print(f"upsert error: {e}")
 
-    if success and upserted > 0:
+    if success and upserted > 0 or fetched > 0:
         mark_success(vendor)
     else:
         mark_error(vendor, "no rows upserted")
