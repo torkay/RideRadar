@@ -216,6 +216,17 @@ def _abs(href: str) -> str:
     return urljoin(BASE, href)
 
 
+def _page_delay_seconds() -> float:
+    try:
+        min_ms = int(os.getenv("PICKLES_PAGE_DELAY_MIN_MS", "400"))
+        max_ms = int(os.getenv("PICKLES_PAGE_DELAY_MAX_MS", "800"))
+    except ValueError:
+        min_ms, max_ms = 400, 800
+    if max_ms < min_ms:
+        max_ms = min_ms
+    return random.uniform(min_ms, max_ms) / 1000.0
+
+
 def _price_from_text(text: Optional[str]) -> Optional[int]:
     if not text:
         return None
@@ -982,6 +993,219 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
 def _hydrate_detail(url: str, debug: bool = False) -> Dict[str, Any]:
     html = fetch_html(url, debug=False)
     return _parse_detail_html(html, debug=debug)
+
+
+async def _async_hydrate_many(urls: List[str], concurrency: int, debug: bool = False) -> Dict[str, Dict[str, Any]]:
+    if concurrency <= 0:
+        concurrency = 1
+    results: Dict[str, Dict[str, Any]] = {}
+    headers = _client_headers(_UA_ROTATE[0])
+    timeout = httpx.Timeout(15.0)
+    sem = asyncio.Semaphore(concurrency)
+
+    async def fetch_one(client: httpx.AsyncClient, url: str) -> Dict[str, Any]:
+        for attempt in range(2):
+            try:
+                async with sem:
+                    await asyncio.sleep(random.uniform(0.3, 0.6))
+                    resp = await client.get(url)
+                resp.raise_for_status()
+                return _parse_detail_html(resp.text, debug=debug)
+            except Exception as exc:
+                if debug:
+                    print(f"DEBUG pickles hydrate error: url={url} attempt={attempt + 1} err={exc}")
+                if attempt == 0:
+                    await asyncio.sleep(0.6 + random.uniform(0.2, 0.4))
+                    continue
+                return {}
+        return {}
+
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=timeout) as client:
+        tasks = {url: asyncio.create_task(fetch_one(client, url)) for url in urls}
+        for url, task in tasks.items():
+            try:
+                results[url] = await task
+            except Exception as exc:  # should be rare since fetch_one handles
+                if debug:
+                    print(f"DEBUG pickles hydrate uncaught error: url={url} err={exc}")
+                results[url] = {}
+    return results
+
+
+def _merge_detail(row: Dict[str, Any], detail: Dict[str, Any]) -> None:
+    if not detail:
+        return
+    for key in [
+        "title",
+        "price_str",
+        "price",
+        "year_guess",
+        "state",
+        "suburb",
+        "sale_method",
+        "make_guess",
+        "model_guess",
+    ]:
+        if detail.get(key):
+            row[key] = detail[key]
+    if detail.get("images"):
+        row["images"] = detail["images"]
+        if not row.get("thumb") and detail["images"]:
+            row["thumb"] = detail["images"][0]
+    for field in ["odometer", "body", "trans", "fuel", "engine", "drive", "variant"]:
+        if detail.get(field) not in (None, ""):
+            row[field] = detail[field]
+    if detail.get("location") and not row.get("location"):
+        row["location"] = detail["location"]
+
+
+def search_pickles(
+    *,
+    make: Optional[str],
+    model: Optional[str],
+    state: Optional[str],
+    suburb: Optional[str] = None,
+    query: Optional[str] = None,
+    pages: int = 1,
+    limit: Optional[int] = None,
+    filters: Optional[Dict[str, List[str]]] = None,
+    double_encode_filter: bool = False,
+    buy_method: Optional[str] = None,
+    hydrate: bool = False,
+    hydrate_concurrency: int = 4,
+    debug: bool = False,
+) -> Tuple[List[Dict[str, Any]], Dict[str, int], Dict[str, int]]:
+    pages = max(1, int(pages or 1))
+    remaining = limit if limit and limit > 0 else None
+    counters: Counter = Counter()
+    rows: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    pages_walked = 0
+    assume_buy_now = (buy_method or "").lower() == "buy_now"
+
+    for page in range(1, pages + 1):
+        if page > 1:
+            delay = _page_delay_seconds()
+            if debug:
+                print(f"DEBUG pickles page-delay: sleeping {delay:.2f}s before page {page}")
+            time.sleep(delay)
+
+        page_limit = remaining if remaining is not None else None
+        search_url = build_search_url(
+            make,
+            model,
+            state,
+            suburb=suburb,
+            query=query,
+            page=page,
+            limit=page_limit,
+            filters=filters,
+            double_encode_filter=double_encode_filter,
+            buy_method=buy_method,
+        )
+        if debug:
+            print(f"DEBUG pickles page={page} url={search_url}")
+        try:
+            html = fetch_html(search_url, debug=debug)
+        except Exception as exc:
+            if debug:
+                print(f"DEBUG pickles page fetch failed (page={page}): {exc}")
+            break
+
+        try:
+            page_rows, page_counters = parse_list(
+                html,
+                limit=page_limit or 1000,
+                debug=debug,
+                hydrate=False,
+                assume_buy_now=assume_buy_now,
+            )
+        except RuntimeError as exc:
+            if debug:
+                print(f"DEBUG pickles page parse stop (page={page}): {exc}")
+            break
+        counters.update(page_counters)
+        pages_walked += 1
+
+        new_rows = 0
+        for row in page_rows:
+            url = row.get("url")
+            if not url or url in seen:
+                counters["dropped_duplicate"] += 1
+                continue
+            seen.add(url)
+            rows.append(row)
+            new_rows += 1
+            if remaining is not None:
+                remaining -= 1
+                if remaining <= 0:
+                    break
+        if debug:
+            print(f"DEBUG pickles page {page} new_rows={new_rows} total_rows={len(rows)}")
+        if remaining is not None and remaining <= 0:
+            break
+        if new_rows == 0:
+            break
+
+    metadata = {
+        "pages_walked": pages_walked,
+    }
+
+    if not rows:
+        counters["hydrated"] = 0
+        return rows, dict(counters), metadata
+
+    if hydrate:
+        urls = [r["url"] for r in rows if r.get("url")]
+        detail_map = asyncio.run(_async_hydrate_many(urls, hydrate_concurrency, debug=debug))
+        hydrated_count = 0
+        for row in rows:
+            detail = detail_map.get(row["url"], {})
+            if detail:
+                hydrated_count += 1
+                _merge_detail(row, detail)
+        counters["hydrated"] = hydrated_count
+    else:
+        counters["hydrated"] = 0
+
+    sale_enquire = 0
+    enquire_unpriced = 0
+    for row in rows:
+        if row.get("price") is None and row.get("price_str"):
+            row["price"] = _digits_to_int(row["price_str"])
+        sale_method = (row.get("sale_method") or "").lower()
+        if sale_method == "enquire":
+            sale_enquire += 1
+            if row.get("price") is None:
+                enquire_unpriced += 1
+
+        year_val = None
+        if row.get("year_guess"):
+            try:
+                year_val = int(str(row["year_guess"]))
+            except Exception:
+                year_val = None
+
+        price_val = row.get("price") if isinstance(row.get("price"), int) else None
+        flags = {
+            "has_year": year_val is not None,
+            "has_state": bool(row.get("state")),
+            "has_price": price_val is not None,
+            "price": price_val,
+            "year": year_val,
+            "price_in_bounds": price_val is not None and _price_in_bounds(price_val),
+            "price_in_range": price_val is not None and _price_in_bounds(price_val),
+            "year_in_range": year_val is not None,
+            "is_enquire": sale_method == "enquire",
+            "sale_method": sale_method,
+        }
+        row["flags"] = flags
+
+    counters["sale_method_enquire"] += sale_enquire
+    counters["enquire_unpriced"] += enquire_unpriced
+    counters["kept_real"] = len(rows)
+
+    return rows, dict(counters), metadata
 def parse_list(
     html: str,
     limit: int,
@@ -1075,76 +1299,6 @@ def parse_list(
             continue
         kept_real.append(r)
 
-    hydrated = 0
-    if hydrate and kept_real:
-        import random, time as _time
-        for r in kept_real:
-            price_str = r.get("price_str") or ""
-            title_text = r.get("title") or ""
-            need_title = not title_text or ("view" in title_text.lower() and "photo" in title_text.lower())
-            has_price_digits = isinstance(r.get("price"), int) or bool(re.search(r"\d", price_str))
-            need_price = not has_price_digits
-            need_sale = not r.get("sale_method")
-            need_year = not r.get("year_guess")
-            need_location = not r.get("state") or not r.get("suburb")
-            need_make_model = not r.get("make_guess") or not r.get("model_guess")
-            if not (need_title or need_price or need_sale or need_year or need_location or need_make_model):
-                continue
-            try:
-                # polite delay 200-350ms
-                _time.sleep(0.2 + random.random() * 0.15)
-                add = _hydrate_detail(r["url"], debug=debug)
-                if add.get("title"):
-                    r["title"] = add["title"]
-                if add.get("price_str"):
-                    r["price_str"] = add["price_str"]
-                if add.get("price") is not None:
-                    r["price"] = add["price"]
-                if add.get("year_guess"):
-                    r["year_guess"] = add["year_guess"]
-                if add.get("state"):
-                    st = str(add.get("state")).upper()
-                    r["state"] = st
-                    if add.get("suburb"):
-                        suburb = str(add.get("suburb")).strip()
-                        r["suburb"] = suburb
-                        r["location"] = f"{suburb} {st}".strip()
-                    else:
-                        r.setdefault("location", st)
-                if add.get("suburb") and not r.get("suburb"):
-                    r["suburb"] = str(add.get("suburb")).strip()
-                    if r.get("state"):
-                        r["location"] = f"{r['suburb']} {r['state']}".strip()
-                if add.get("sale_method"):
-                    r["sale_method"] = add["sale_method"]
-                if add.get("make_guess"):
-                    r["make_guess"] = add["make_guess"]
-                if add.get("model_guess"):
-                    r["model_guess"] = add["model_guess"]
-                if add.get("images"):
-                    r["images"] = add["images"]
-                    if not r.get("thumb"):
-                        r["thumb"] = add["images"][0]
-                if debug:
-                    price_display = add.get("price") if add.get("price") is not None else r.get("price")
-                    print(
-                        "DEBUG pickles hydrated: url=%s price=%s sale_method=%s year=%s state=%s suburb=%s"
-                        % (
-                            r.get("url"),
-                            price_display if price_display is not None else "",
-                            r.get("sale_method") or "",
-                            r.get("year_guess") or "",
-                            r.get("state") or "",
-                            r.get("suburb") or "",
-                        )
-                    )
-                hydrated += 1
-            except Exception:
-                counters["dropped_parse_error"] += 1
-                if debug:
-                    print(f"DEBUG pickles drop[hydrate_error]: url={r.get('url')}")
-                continue
-
     for r in kept_real:
         if r.get("price") is None and r.get("price_str"):
             r["price"] = _digits_to_int(r["price_str"])
@@ -1152,21 +1306,12 @@ def parse_list(
             r["state"] = str(r["state"]).strip().upper()
             if not r.get("location"):
                 r["location"] = r["state"]
-        price_val = r.get("price")
-        sale_method = r.get("sale_method")
-        if price_val is not None:
-            if not _price_in_bounds(price_val):
-                counters["dropped_price_out_of_range"] += 1
-                if debug:
-                    print(
-                        f"WARN pickles drop[price_out_of_range]: url={r.get('url')} price={price_val}"
-                    )
-                r["_drop_reason"] = "price_out_of_range"
-                continue
-        if assume_buy_now and r.get("price") is not None and not sale_method:
+        if assume_buy_now and r.get("price") is not None and not r.get("sale_method"):
             r["sale_method"] = "buy_now"
         if r.get("price") is not None and not r.get("price_str"):
             r["price_str"] = str(r["price"])
+
+    hydrated = 0
 
     if debug:
         print(
@@ -1183,16 +1328,11 @@ def parse_list(
             % (len(kept_real), hydrated, " ".join(drop_summary))
         )
 
-    final_rows = [r for r in kept_real if r.get("_drop_reason") is None]
-    for r in final_rows:
-        r.pop("_drop_reason", None)
-
-    if not final_rows:
+    if not kept_real:
         raise RuntimeError("no tiles (pickles)")
 
-    counters["hydrated"] = hydrated
-    counters["kept_real"] = len(final_rows)
-    return final_rows, dict(counters)
+    counters["kept_real"] = len(kept_real)
+    return kept_real, dict(counters)
 
 
 def to_raw(row: Dict[str, Any]) -> Dict[str, Any]:

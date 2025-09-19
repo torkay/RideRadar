@@ -61,6 +61,34 @@ python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyot
 ```
  - Preserves rows with `sale_method='enquire'` and `price=None`; summary shows `sale_method_enquire`/`enquire_unpriced` counters.
 
+Pickles finishing pass (multi-page, hydrated, gated):
+
+- Strict Buy Now (priced) across 2 pages:
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --pages 2 --limit 20 --hydrate-details --strict-prices --debug --dry-run
+```
+
+- Permissive (allow Enquire, keep unpriced) across 3 pages:
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --pages 3 --limit 50 --hydrate-details --allow-enquire --no-require-price --include-unpriced --debug --dry-run
+```
+
+- Quality gates (year/price bounds):
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state QLD --query "toyota corolla" --pages 2 --limit 40 --hydrate-details --min-year 2010 --min-price 3000 --max-price 120000 --debug --dry-run
+```
+
+- Tune detail hydration concurrency:
+
+```
+python -m engine.scraper.orchestrator --vendor pickles --state NT --query "toyota corolla" --pages 2 --limit 30 --hydrate-details --hydrate-concurrency 4 --debug --dry-run
+```
+
+- Persist `sale_method` top-level (optional): set `LISTINGS_ENABLE_SALE_METHOD_COLUMN=true` and add the column once via `ALTER TABLE listings ADD COLUMN sale_method text;`.
+
 Pickles scraper notes:
 - To surface `sale_method` at the top level, export `LISTINGS_ENABLE_SALE_METHOD_COLUMN=true` and add the column via `ALTER TABLE listings ADD COLUMN sale_method text;` (optional).
 ### Autotrader (HTTPX, SSR)
