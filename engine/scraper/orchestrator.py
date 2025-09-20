@@ -295,9 +295,9 @@ def main(argv: List[str] | None = None) -> int:
                     print(f"DEBUG pickles drop[missing_state]: url={url}")
                 continue
 
-            price_required = args.strict_prices or args.require_price or (not args.require_price and not args.include_unpriced)
-            if sale_method == "enquire" and args.allow_enquire and args.include_unpriced and not args.strict_prices:
-                price_required = False
+            price_required = args.strict_prices or (args.require_price and not args.include_unpriced)
+            if sale_method == "enquire" and args.allow_enquire and args.include_unpriced:
+                price_required = args.strict_prices
 
             if price_required and not has_price:
                 if sale_method == "enquire":

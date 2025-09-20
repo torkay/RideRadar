@@ -74,8 +74,10 @@ def test_parse_detail_html_extracts_specs():
           <dt>Transmission</dt><dd>Automatic</dd>
           <dt>Fuel</dt><dd>Hybrid</dd>
           <dt>Engine</dt><dd>2.0L</dd>
-          <dt>Drivetrain</dt><dd>FWD</dd>
+          <dt>Drivetrain</dt><dd>Front Wheel Drive</dd>
           <dt>Variant</dt><dd>Ascent Sport</dd>
+          <dt>Seats</dt><dd>5</dd>
+          <dt>Cylinders</dt><dd>4</dd>
         </dl>
         <div data-testid="location">Woolloongabba QLD</div>
         <img src="https://cdn.example.com/img1.jpg" />
@@ -86,15 +88,35 @@ def test_parse_detail_html_extracts_specs():
     """
     detail = pk._parse_detail_html(html, debug=False)
     assert detail["price"] == 34340
-    assert detail["odometer"] == 123456
-    assert detail["body"].lower() == "hatchback"
-    assert detail["trans"].lower().startswith("automatic")
-    assert detail["fuel"].lower() == "hybrid"
-    assert detail["engine"].startswith("2.0")
-    assert detail["drive"].upper() == "FWD"
+    assert detail["odometer_km"] == 123456
+    assert detail["body_type"] == "hatchback"
+    assert detail["transmission"] == "Automatic"
+    assert detail["fuel_type"] == "hybrid"
+    assert detail["engine_size_l"] == 2.0
+    assert detail["drivetrain"] == "fwd"
     assert detail["variant"].lower() == "ascent sport"
+    assert detail["seats"] == 5
+    assert detail["cylinders"] == 4
     assert detail["state"].upper() == "QLD"
     assert detail["images"] == ["https://cdn.example.com/img1.jpg", "https://cdn.example.com/img2.jpg"]
+
+
+def test_parse_tile_chips_normalisation():
+    chips = [
+        "50,162 km",
+        "4 cyl 1.8 L Petrol",
+        "1 Spd CVT",
+        "5 seats",
+        "Front Wheel Drive",
+    ]
+    specs = pk._parse_tile_chips(chips)
+    assert specs["odometer_km"] == 50162
+    assert specs["cylinders"] == 4
+    assert specs["engine_size_l"] == 1.8
+    assert specs["fuel_type"] == "petrol"
+    assert specs["transmission"] == "CVT"
+    assert specs["drivetrain"] == "fwd"
+    assert specs["seats"] == 5
 
 
 def test_clean_media_urls_filters_placeholders():
@@ -116,3 +138,10 @@ def test_query_filter_helper():
 
     row_bad = {"title": "2018 Toyota Hilux SR5", "make_guess": "Toyota", "model_guess": "Hilux", "variant": "SR5"}
     assert not orch._passes_query_filter(make_token, other_tokens, row_bad)
+
+
+def test_merge_detail_preserves_tile_price_when_missing():
+    row = {"url": "https://example.com/a", "price": 25000, "tile_chips": []}
+    detail = {"title": "Sample", "price": None, "_spec_source_detail": set()}
+    pk._merge_detail(row, detail, [], debug=False)
+    assert row["price"] == 25000

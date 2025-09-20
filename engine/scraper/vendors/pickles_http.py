@@ -53,6 +53,40 @@ _PLACEHOLDER_MEDIA = {
     "/PicklesAuctions/images/watchlist-img.png",
 }
 
+_RSC_CHUNK_RE = re.compile(r"self.__next_f.push\(\[1,\"(.*?)\"\]\)", re.DOTALL)
+
+SPEC_LABEL_KEYS = {
+    "odometer": "odometer_km",
+    "kilometres": "odometer_km",
+    "kilometers": "odometer_km",
+    "transmission": "transmission",
+    "fuel": "fuel_type",
+    "fuel type": "fuel_type",
+    "body": "body_type",
+    "body type": "body_type",
+    "drive": "drivetrain",
+    "drivetrain": "drivetrain",
+    "driveline": "drivetrain",
+    "engine": "engine_size",
+    "engine size": "engine_size",
+    "variant": "variant",
+    "trim": "variant",
+    "seats": "seats",
+    "cylinders": "cylinders",
+}
+
+SPEC_FIELD_ORDER = [
+    "odometer_km",
+    "engine_size_l",
+    "cylinders",
+    "seats",
+    "transmission",
+    "fuel_type",
+    "body_type",
+    "drivetrain",
+    "variant",
+]
+
 
 def _price_in_bounds(value: int) -> bool:
     return 500 <= value <= 500_000
@@ -330,6 +364,284 @@ def _detect_sale_method(soup: BeautifulSoup, body_text: str) -> Optional[str]:
     return None
 
 
+def _parse_detail_labels(soup: BeautifulSoup) -> Dict[str, str]:
+    labels: Dict[str, str] = {}
+    for dt in soup.find_all("dt"):
+        key = dt.get_text(" ", strip=True).lower()
+        if not key:
+            continue
+        dd = dt.find_next_sibling("dd")
+        if dd:
+            labels.setdefault(key, dd.get_text(" ", strip=True))
+    for row in soup.find_all("tr"):
+        cells = row.find_all(["th", "td"])
+        if len(cells) != 2:
+            continue
+        key = cells[0].get_text(" ", strip=True).lower()
+        val = cells[1].get_text(" ", strip=True)
+        if key and val:
+            labels.setdefault(key, val)
+    return labels
+
+
+def _extract_asset_payload(html: str) -> Dict[str, Any]:
+    if not html:
+        return {}
+    for match in _RSC_CHUNK_RE.finditer(html):
+        chunk = match.group(1)
+        try:
+            decoded = bytes(chunk, "utf-8").decode("unicode_escape")
+        except Exception:
+            continue
+        start_token = '"asset":'
+        idx = decoded.find(start_token)
+        if idx == -1:
+            continue
+        start = idx + len(start_token)
+        if start >= len(decoded) or decoded[start] != '{':
+            continue
+        brace_level = 0
+        end = None
+        for pos in range(start, len(decoded)):
+            ch = decoded[pos]
+            if ch == '{':
+                brace_level += 1
+            elif ch == '}':
+                if brace_level == 0:
+                    end = pos + 1
+                    break
+                brace_level -= 1
+                if brace_level == 0:
+                    end = pos + 1
+                    break
+        if end is None:
+            continue
+        asset_str = decoded[start:end]
+        try:
+            return json.loads(asset_str)
+        except Exception:
+            continue
+    return {}
+
+
+def _asset_spec_labels(asset: Dict[str, Any]) -> Dict[str, str]:
+    labels: Dict[str, str] = {}
+
+    def put(key: str, value: Optional[str]) -> None:
+        if value:
+            labels[key] = value.strip()
+
+    odo = asset.get("odometerReading")
+    if isinstance(odo, str):
+        cleaned = odo.replace(".", "")
+        m = re.search(r"(\d[\d,]*)", cleaned)
+        if m:
+            digits = re.sub(r"[^0-9]", "", m.group(1))
+            if digits:
+                try:
+                    value = f"{int(digits):,} km"
+                    put("odometer", value)
+                except Exception:
+                    put("odometer", odo)
+        elif odo.strip():
+            put("odometer", odo)
+    elif isinstance(odo, (int, float)):
+        try:
+            put("odometer", f"{int(odo):,} km")
+        except Exception:
+            put("odometer", str(odo))
+
+    seats = asset.get("noOfSeats")
+    if seats:
+        put("seats", f"{seats} seats")
+
+    cyl = asset.get("numberOfCylinders")
+    if cyl:
+        put("cylinders", f"{cyl} cyl")
+
+    engine_cap = asset.get("engineCapacity")
+    if isinstance(engine_cap, str) and engine_cap.strip():
+        normalized = engine_cap.replace("Ltr", "L").replace("Litre", "L")
+        put("engine", normalized)
+    elif isinstance(engine_cap, (int, float)):
+        put("engine", str(engine_cap))
+    elif isinstance(asset.get("engineType"), str):
+        put("engine", asset.get("engineType"))
+
+    trans = asset.get("transmissionType")
+    if isinstance(trans, str):
+        put("transmission", trans)
+
+    fuel = asset.get("fuelType")
+    if isinstance(fuel, str):
+        put("fuel", fuel)
+
+    drive = asset.get("driveType")
+    if isinstance(drive, str):
+        put("drive", drive)
+
+    body = asset.get("bodyType")
+    if isinstance(body, str):
+        put("body", body)
+
+    badge = asset.get("badge")
+    badge_secondary = asset.get("badgeSecondary")
+    variant_parts = [part for part in [badge, badge_secondary] if isinstance(part, str) and part.strip()]
+    if variant_parts:
+        put("variant", " ".join(variant_parts))
+
+    return labels
+
+
+def _parse_tile_chips(chips: List[str]) -> Dict[str, Any]:
+    raw_map: Dict[str, str] = {}
+    for chip in chips:
+        text = chip.strip()
+        if not text:
+            continue
+        lower = text.lower()
+        if "km" in lower and "cyl" not in lower:
+            m = re.search(r"(\d[\d,\.]*)\s*km\b", lower)
+            if m and "odometer" not in raw_map:
+                raw_map["odometer"] = m.group(1) + " km"
+        if "cyl" in lower and "cylinders" not in raw_map:
+            m = re.search(r"(\d)\s*cyl", lower)
+            if m:
+                raw_map["cylinders"] = m.group(1)
+        if "seats" in lower and "seats" not in raw_map:
+            m = re.search(r"(\d+)\s*seats?", lower)
+            if m:
+                raw_map["seats"] = m.group(1)
+        if any(term in lower for term in ["automatic", "manual", "cvt", "spd"]):
+            raw_map.setdefault("transmission", text)
+        if any(term in lower for term in ["diesel", "petrol", "ulp", "hybrid", "electric"]):
+            raw_map.setdefault("fuel", text)
+        if any(term in lower for term in ["4x4", "awd", "fwd", "front wheel drive", "rear wheel drive", "rwd"]):
+            raw_map.setdefault("drivetrain", text)
+        m = re.search(r"(\d\.\d)\s*[lL]\b", lower)
+        if m and "engine" not in raw_map:
+            raw_map["engine"] = m.group(1)
+    normalized, _ = _normalise_specs(raw_map)
+    return normalized
+
+
+def _normalise_specs(raw_labels: Dict[str, str]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    normalized: Dict[str, Any] = {}
+    sources: Dict[str, str] = {}
+    lowered = {k.lower(): v for k, v in raw_labels.items() if v}
+
+    def pick(*keys: str) -> Optional[str]:
+        for key in keys:
+            key = key.lower()
+            if key in lowered:
+                return lowered[key]
+        return None
+
+    def record(field: str, value: Any, source: str = "detail") -> None:
+        if value is None or value == "":
+            return
+        normalized[field] = value
+        sources[field] = source
+
+    raw_odo = pick("odometer", "kilometres", "kilometers")
+    if raw_odo:
+        digits = re.sub(r"[^0-9]", "", raw_odo)
+        if digits:
+            record("odometer_km", int(digits))
+
+    raw_trans = pick("transmission")
+    if raw_trans:
+        text = raw_trans.lower()
+        if "cvt" in text:
+            norm = "CVT"
+        elif "manual" in text:
+            norm = "Manual"
+        elif "sports" in text and "automatic" in text:
+            norm = "Sports Automatic"
+        elif "automatic" in text:
+            norm = "Automatic"
+        else:
+            norm = raw_trans.strip()
+        record("transmission", norm)
+
+    raw_fuel = pick("fuel", "fuel type")
+    if raw_fuel:
+        text = raw_fuel.lower()
+        if "hybrid" in text:
+            norm = "hybrid"
+        elif "diesel" in text:
+            norm = "diesel"
+        elif "electric" in text:
+            norm = "electric"
+        elif any(token in text for token in ["ulp", "petrol", "unleaded"]):
+            norm = "petrol"
+        else:
+            norm = raw_fuel.strip().lower()
+        record("fuel_type", norm)
+
+    raw_body = pick("body", "body type")
+    if raw_body:
+        text = raw_body.lower()
+        body_map = {
+            "hatch": "hatchback",
+            "hatchback": "hatchback",
+            "sedan": "sedan",
+            "wagon": "wagon",
+            "suv": "suv",
+            "ute": "ute",
+            "pick-up": "ute",
+            "van": "van",
+            "coupe": "coupe",
+            "convertible": "convertible",
+        }
+        norm = None
+        for key, value in body_map.items():
+            if key in text:
+                norm = value
+                break
+        record("body_type", norm or raw_body.strip().lower())
+
+    raw_drive = pick("drive", "drivetrain", "driveline")
+    if raw_drive:
+        text = raw_drive.lower()
+        if "4x4" in text or "dual" in text:
+            norm = "4x4"
+        elif "all wheel" in text or "awd" in text:
+            norm = "awd"
+        elif "front" in text or "fwd" in text:
+            norm = "fwd"
+        elif "rear" in text or "rwd" in text:
+            norm = "rwd"
+        else:
+            norm = raw_drive.strip().lower()
+        record("drivetrain", norm)
+
+    raw_variant = pick("variant", "trim")
+    if raw_variant:
+        record("variant", raw_variant.strip())
+
+    raw_seats = pick("seats")
+    if raw_seats:
+        m = re.search(r"(\d+)", raw_seats)
+        if m:
+            record("seats", int(m.group(1)))
+
+    raw_cyl = pick("cylinders")
+    if raw_cyl:
+        m = re.search(r"(\d+)", raw_cyl)
+        if m:
+            record("cylinders", int(m.group(1)))
+
+    raw_engine = pick("engine", "engine size")
+    if raw_engine:
+        m = re.search(r"(\d+(?:\.\d+)?)", raw_engine)
+        if m:
+            try:
+                record("engine_size_l", float(m.group(1)))
+            except Exception:
+                pass
+
+    return normalized, sources
 def _guess_make_model(title: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     if not title:
         return None, None
@@ -414,6 +726,8 @@ def _is_vehicle_href(href: str) -> bool:
     )
     if href in bad_paths:
         return False
+    if href.startswith("/used/search/"):
+        return False
     # Known good forms
     if re.match(r"^/used/details/cars/[^/]+/[0-9A-Za-z-]+$", href, re.IGNORECASE):
         return True
@@ -445,12 +759,22 @@ def _is_blacklisted_href(href: str) -> bool:
 
 
 def _extract_fields_from_card(a: Any) -> Tuple[str, Dict[str, Any]]:
-    href = a.get("href") or ""
+    card_anchor = a
+    if "product-card-link" not in (card_anchor.get("id") or ""):
+        candidate = card_anchor.find_parent(
+            lambda tag: getattr(tag, "name", None) == "a" and "product-card-link" in (tag.get("id") or "")
+        )
+        if candidate is None:
+            candidate = card_anchor.select_one("a[id*='product-card-link'][href]")
+        if candidate is not None:
+            card_anchor = candidate
+
+    href = card_anchor.get("href") or ""
     url = _abs(href.split("?", 1)[0])
     sid = href.rstrip("/").split("/")[-1]
     # Title from heading or attribute within card; fallback to anchor text
     title = None
-    card = a
+    card = card_anchor
     for _ in range(3):
         if getattr(card, "parent", None):
             card = card.parent
@@ -464,7 +788,7 @@ def _extract_fields_from_card(a: Any) -> Tuple[str, Dict[str, Any]]:
         if low and not ("view" in low and "photo" in low):
             title = cand or None
     if not title:
-        title = (a.get_text(" ", strip=True) or "").strip()
+        title = (card_anchor.get_text(" ", strip=True) or "").strip()
     text = card.get_text(" ", strip=True)
     # Price
     price_str = None
@@ -498,6 +822,71 @@ def _extract_fields_from_card(a: Any) -> Tuple[str, Dict[str, Any]]:
     if my:
         yguess = my.group(1)
     make_guess, model_guess = _guess_make_model(title)
+
+    chip_texts: List[str] = []
+    seen_chip: set[str] = set()
+    chip_selectors = [
+        "[id*='key-features'] p",
+        "[class*='keyfeatures'] p",
+        "[data-testid*='key-features']",
+        "[data-testid*='spec']",
+    ]
+    skip_tokens = [
+        "more detail",
+        "more photo",
+        "interested",
+        "add a note",
+        "share",
+        "watchlist",
+        "stock",
+        "condition details",
+    ]
+    def append_chip(text: str) -> None:
+        normalized = text.strip()
+        if not normalized:
+            return
+        lower_txt = normalized.lower()
+        if any(token in lower_txt for token in skip_tokens):
+            return
+        if normalized in seen_chip:
+            return
+        seen_chip.add(normalized)
+        chip_texts.append(normalized)
+
+    if sid:
+        targeted = card.select(
+            f"#ps-ccg-key-features-{sid}, #ps-ckf-keyfeatures-wrapper-{sid}, [id$='-{sid}'][class*='keyfeatures']"
+        )
+        for container in targeted:
+            for node in container.select("p, span"):
+                append_chip(node.get_text(" ", strip=True))
+
+    if not chip_texts:
+        for sel in chip_selectors:
+            for chip in card.select(sel):
+                append_chip(chip.get_text(" ", strip=True))
+            if chip_texts:
+                break
+    if not chip_texts:
+        fallback = card.select("[class*='truncate']")
+        for node in fallback:
+            txt = node.get_text(" ", strip=True)
+            if not txt:
+                continue
+            lower_txt = txt.lower()
+            if any(token in lower_txt for token in skip_tokens):
+                continue
+            if txt in seen_chip:
+                continue
+            seen_chip.add(txt)
+            chip_texts.append(txt)
+    if not chip_texts:
+        raw_chip_text = card.get_text(" · ", strip=True)
+        chip_texts = [
+            seg.strip()
+            for seg in raw_chip_text.split("·")
+            if seg.strip() and not any(token in seg.lower() for token in skip_tokens)
+        ]
     return url, {
         "url": url,
         "source_id_guess": sid,
@@ -511,6 +900,7 @@ def _extract_fields_from_card(a: Any) -> Tuple[str, Dict[str, Any]]:
         "year_guess": yguess,
         "make_guess": make_guess,
         "model_guess": model_guess,
+        "tile_chips": chip_texts,
     }
 
 
@@ -527,6 +917,7 @@ def _extract_by_containers(
         "div[class*='search']",
     ]
     item_sel = [
+        "a[id*='product-card-link'][href]",
         "article a[href]",
         "li a[href]",
         "div a[href]",
@@ -534,14 +925,18 @@ def _extract_by_containers(
     seen: set[str] = set()
     for csel in container_sel:
         for cont in soup.select(csel):
+            added_any = False
             for isel in item_sel:
                 for a in cont.select(isel):
                     href = a.get("href") or ""
+                    anchor_id = a.get("id") or ""
+                    if "product-card-link" not in anchor_id:
+                        continue
                     if not _is_vehicle_href(href):
                         continue
                     # Filter out office/homepage-like titles
                     tx = (a.get_text(" ", strip=True) or "").lower()
-                    if any(x in tx for x in ["main office", "contact", "home"]):
+                    if any(x in tx for x in ["main office", "contact", "home", "more photos"]):
                         continue
                     try:
                         url, data = _extract_fields_from_card(a)
@@ -559,6 +954,9 @@ def _extract_by_containers(
                     rows.append(data)
                     if len(rows) >= limit:
                         return rows
+                    added_any = True
+                if added_any:
+                    break
     return rows
 
 
@@ -778,6 +1176,8 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
     ldjson_docs = _collect_ldjson_dicts(soup)
     ld_count = len(ldjson_docs)
 
+    asset_data = _extract_asset_payload(html)
+
     price_val, price_flags = get_price_from_detail(html, soup=soup, ldjson_docs=ldjson_docs)
     sale_method = get_sale_method(html, soup=soup, ldjson_docs=ldjson_docs)
     body_text = soup.get_text(" ", strip=True)
@@ -856,6 +1256,24 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
         if md and not model_guess:
             model_guess = md
 
+    if asset_data:
+        if not title and isinstance(asset_data.get("title"), str):
+            title = asset_data["title"]
+        if not make_guess and isinstance(asset_data.get("make"), str):
+            make_guess = asset_data.get("make")
+        if not model_guess and isinstance(asset_data.get("model"), str):
+            model_guess = asset_data.get("model")
+        if year_val is None:
+            year_candidate = asset_data.get("year")
+            if isinstance(year_candidate, int):
+                year_val = year_candidate
+            else:
+                try:
+                    if isinstance(year_candidate, str) and year_candidate.isdigit():
+                        year_val = int(year_candidate)
+                except Exception:
+                    pass
+
     if not (state_val or suburb_val):
         loc_el = soup.select_one("[data-testid*='location'], .vehicle-location, .listing-location")
         if loc_el:
@@ -876,48 +1294,46 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
         if ms:
             state_val = ms.group(1)
 
+    if asset_data:
+        loc = asset_data.get("assetLocation") or {}
+        if not suburb_val and isinstance(loc.get("suburbName"), str):
+            suburb_val = loc.get("suburbName")
+        if not state_val and isinstance(loc.get("state"), str):
+            state_val = loc.get("state")
+        if not sale_method:
+            sale_method = _match_sale_method(
+                (asset_data.get("saleBuyMethod") or asset_data.get("buyMethod") or "")
+            )
+
     if not sale_method and price_val is not None:
         sale_method = "buy_now"
 
-    specs = _extract_spec_pairs(soup)
+    detail_labels = _parse_detail_labels(soup)
+    if asset_data:
+        asset_labels = _asset_spec_labels(asset_data)
+        for key, value in asset_labels.items():
+            if key not in detail_labels or not detail_labels[key]:
+                detail_labels[key] = value
+    detail_specs_norm, detail_spec_sources = _normalise_specs(detail_labels)
 
-    def spec_value(*keys: str) -> Optional[str]:
-        for key in keys:
-            val = specs.get(key.lower())
-            if val:
-                return val
-        return None
-
-    odometer_text = spec_value("odometer", "kilometres", "kilometers")
-    if not odometer_text:
-        odometer_text = _search_patterns(body_text, [r"odometer[:\s]*([0-9,\.]+)\s*(?:km|kms)", r"([0-9,\.]+)\s*(?:km|kms)\b"])
-    odometer_val: Optional[int] = None
-    if odometer_text:
-        odometer_val = _digits_to_int(odometer_text)
-
-    body_val = spec_value("body", "body type")
-    if not body_val:
-        body_val = _search_patterns(body_text, [r"body(?: type)?[:\s]*([A-Za-z0-9 /-]{3,30})"])
-
-    trans_val = spec_value("transmission")
-    if not trans_val:
-        trans_val = _search_patterns(body_text, [r"transmission[:\s]*([A-Za-z0-9 /-]{3,30})"])
-
-    fuel_val = spec_value("fuel", "fuel type")
-    if not fuel_val:
-        fuel_val = _search_patterns(body_text, [r"fuel(?: type)?[:\s]*([A-Za-z0-9 /-]{3,30})"])
-
-    engine_val = spec_value("engine", "engine size")
-    if not engine_val:
-        engine_val = _search_patterns(body_text, [r"engine[:\s]*([A-Za-z0-9\./ -]{2,20})"])
-
-    drive_val = spec_value("drive", "drivetrain", "driveline")
-    if not drive_val:
-        drive_val = _search_patterns(body_text, [r"(?:drive|drivetrain)[:\s]*([A-Za-z0-9/ -]{3,15})"])
-
-    variant_val = spec_value("variant", "trim")
-    if not variant_val:
-        variant_val = _search_patterns(body_text, [r"variant[:\s]*([A-Za-z0-9 /-]{2,40})"])
+    dom_media: List[str] = []
+    for selector in [
+        "[data-testid*='image'] img",
+        "[data-testid*='gallery'] img",
+        "pds-gallery img",
+        "img",
+    ]:
+        for img in soup.select(selector):
+            src = (
+                img.get("data-src")
+                or img.get("data-lazy")
+                or (img.get("data-srcset") or "").split(" ")[0]
+                or img.get("src")
+            )
+            if src:
+                dom_media.append(src)
+        if len(dom_media) >= 6:
+            break
 
     dom_media: List[str] = []
     for selector in [
@@ -961,20 +1377,9 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
         out["make_guess"] = make_guess
     if model_guess:
         out["model_guess"] = model_guess
-    if odometer_val is not None:
-        out["odometer"] = odometer_val
-    if body_val:
-        out["body"] = body_val
-    if trans_val:
-        out["trans"] = trans_val
-    if fuel_val:
-        out["fuel"] = fuel_val
-    if engine_val:
-        out["engine"] = engine_val
-    if drive_val:
-        out["drive"] = drive_val
-    if variant_val:
-        out["variant"] = variant_val
+    if detail_specs_norm:
+        out.update(detail_specs_norm)
+        out["_spec_source_detail"] = set(detail_specs_norm.keys())
     if suburb_val and state_val:
         out["location"] = f"{suburb_val} {state_val}"
     elif state_val and not out.get("location"):
@@ -998,15 +1403,10 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
             )
         )
         print(
-            "DEBUG pickles hydrate specs: odometer=%s trans=%s fuel=%s body=%s engine=%s drive=%s variant=%s"
-            % (
-                odometer_val if odometer_val is not None else "",
-                trans_val or "",
-                fuel_val or "",
-                body_val or "",
-                engine_val or "",
-                drive_val or "",
-                variant_val or "",
+            "DEBUG pickles hydrate specs(detail): "
+            + " ".join(
+                f"{field}={detail_specs_norm.get(field, '')}"
+                for field in SPEC_FIELD_ORDER
             )
         )
     return out
@@ -1053,13 +1453,28 @@ async def _async_hydrate_many(urls: List[str], concurrency: int, debug: bool = F
     return results
 
 
-def _merge_detail(row: Dict[str, Any], detail: Dict[str, Any]) -> None:
+def _merge_detail(row: Dict[str, Any], detail: Dict[str, Any], tile_chips: Optional[List[str]], debug: bool) -> None:
     if not detail:
+        if debug:
+            print("DEBUG pickles hydrate price: missing")
         return
+
+    tile_price = row.get("price") if isinstance(row.get("price"), int) else None
+    detail_price = detail.get("price") if isinstance(detail.get("price"), int) else None
+    if detail_price is not None:
+        row["price"] = detail_price
+        row["price_str"] = str(detail_price)
+        price_status = "found_on_detail"
+    elif tile_price is not None:
+        row["price"] = tile_price
+        price_status = "kept_from_tile"
+    else:
+        price_status = "missing"
+    if debug:
+        print(f"DEBUG pickles hydrate price: {price_status}")
+
     for key in [
         "title",
-        "price_str",
-        "price",
         "year_guess",
         "state",
         "suburb",
@@ -1069,15 +1484,51 @@ def _merge_detail(row: Dict[str, Any], detail: Dict[str, Any]) -> None:
     ]:
         if detail.get(key):
             row[key] = detail[key]
+
     if detail.get("images"):
         row["images"] = detail["images"]
         if not row.get("thumb") and detail["images"]:
             row["thumb"] = detail["images"][0]
-    for field in ["odometer", "body", "trans", "fuel", "engine", "drive", "variant"]:
-        if detail.get(field) not in (None, ""):
-            row[field] = detail[field]
     if detail.get("location") and not row.get("location"):
         row["location"] = detail["location"]
+
+    detail_precision = detail.pop("_spec_source_detail", set()) if isinstance(detail.get("_spec_source_detail"), set) else set()
+    detail_specs = {field: detail.get(field) for field in SPEC_FIELD_ORDER if detail.get(field) not in (None, "")}
+    tile_specs_norm = _parse_tile_chips(tile_chips or [])
+
+    spec_sources: Dict[str, str] = {}
+    for field in SPEC_FIELD_ORDER:
+        if field in detail_specs:
+            row[field] = detail_specs[field]
+            spec_sources[field] = "detail"
+        elif field in tile_specs_norm and tile_specs_norm[field] not in (None, ""):
+            row[field] = tile_specs_norm[field]
+            spec_sources[field] = "tile"
+
+    if debug:
+        source_set = set(spec_sources.values())
+        if not source_set:
+            src = "missing"
+        elif source_set == {"detail"}:
+            src = "detail"
+        elif source_set == {"tile"}:
+            src = "tile"
+        else:
+            src = "mixed"
+        summary_parts = []
+        for field in [
+            "odometer_km",
+            "transmission",
+            "fuel_type",
+            "body_type",
+            "engine_size_l",
+            "drivetrain",
+            "seats",
+            "cylinders",
+            "variant",
+        ]:
+            summary_parts.append(f"{field.split('_')[0]}={row.get(field, '')}")
+        print("DEBUG pickles hydrate specs: " + " ".join(summary_parts) + f" from={src}")
 
 
 def search_pickles(
@@ -1182,10 +1633,10 @@ def search_pickles(
         detail_map = asyncio.run(_async_hydrate_many(urls, hydrate_concurrency, debug=debug))
         hydrated_count = 0
         for row in rows:
-            detail = detail_map.get(row["url"], {})
+            detail = detail_map.get(row.get("url", ""), {})
             if detail:
                 hydrated_count += 1
-                _merge_detail(row, detail)
+                _merge_detail(row, detail, row.get("tile_chips"), debug=debug)
         counters["hydrated"] = hydrated_count
     else:
         counters["hydrated"] = 0
@@ -1250,7 +1701,7 @@ def parse_list(
             if not _is_vehicle_href(href):
                 continue
             tx = (a.get_text(" ", strip=True) or "").lower()
-            if any(x in tx for x in ["main office", "contact", "home"]):
+            if any(x in tx for x in ["main office", "contact", "home", "more photos"]):
                 continue
             try:
                 url, data = _extract_fields_from_card(a)
@@ -1295,7 +1746,7 @@ def parse_list(
                 continue
             # Filter out office/homepage-like titles
             title = (r.get("title") or "").lower()
-            if any(x in title for x in ["main office", "contact"]):
+            if any(x in title for x in ["main office", "contact", "more photos"]):
                 continue
             seen_all.add(url)
             combined.append(r)
