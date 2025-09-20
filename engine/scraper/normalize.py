@@ -145,9 +145,11 @@ def normalize_pickles(item: Dict[str, Any]) -> Dict[str, Any]:
         media_urls.append(item["thumb"])
     out["media"] = _absolutize_media(media_urls)
 
-    # Odometer if provided in card/detail (km)
-    if item.get("odometer") is not None:
-        out["odometer"] = _to_int(item["odometer"])
+    odo_source = item.get("odometer_km")
+    if odo_source is None:
+        odo_source = item.get("odometer")
+    if odo_source is not None:
+        out["odometer"] = _to_int(odo_source)
 
     # Price if present (prefer explicit int)
     if item.get("price") is not None:
@@ -181,18 +183,32 @@ def normalize_pickles(item: Dict[str, Any]) -> Dict[str, Any]:
         out["suburb"] = sb.strip()
 
     # Hydrated detail fields
-    if item.get("body"):
-        out["body"] = str(item["body"]).strip()
-    if item.get("trans"):
-        out["trans"] = str(item["trans"]).strip()
-    if item.get("fuel"):
-        out["fuel"] = str(item["fuel"]).strip()
-    if item.get("engine"):
-        out["engine"] = str(item["engine"]).strip()
-    if item.get("drive"):
-        out["drive"] = str(item["drive"]).strip()
+    body_val = item.get("body_type") or item.get("body")
+    if body_val:
+        out["body"] = str(body_val).strip()
+    trans_val = item.get("transmission") or item.get("trans")
+    if trans_val:
+        out["trans"] = str(trans_val).strip()
+    fuel_val = item.get("fuel_type") or item.get("fuel")
+    if fuel_val:
+        out["fuel"] = str(fuel_val).strip()
+    engine_val = item.get("engine_size_l")
+    if engine_val is None:
+        engine_val = item.get("engine")
+    if engine_val is not None:
+        if isinstance(engine_val, (int, float)):
+            out["engine"] = f"{engine_val:g}L"
+        else:
+            out["engine"] = str(engine_val).strip()
+    drive_val = item.get("drivetrain") or item.get("drive")
+    if drive_val:
+        out["drive"] = str(drive_val).strip()
     if item.get("variant"):
         out["variant"] = str(item["variant"]).strip()
+    if item.get("seats") is not None:
+        out["seats"] = _to_int(item["seats"])
+    if item.get("cylinders") is not None:
+        out["cylinders"] = _to_int(item["cylinders"])
 
     # Make/model guesses
     mk_guess = _format_guess(item.get("make_guess"))
