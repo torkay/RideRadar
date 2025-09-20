@@ -21,6 +21,7 @@ website/.vercel/
 
 # Binaries & artifacts
 engine/chromedriver*
+engine/storage/snapshots/*.html
 storage/*.json
 storage/*.txt
 *.png
