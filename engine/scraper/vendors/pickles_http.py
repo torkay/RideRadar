@@ -303,8 +303,11 @@ def _clean_media_urls(urls: List[str]) -> List[str]:
             continue
         if u.startswith("//"):
             u = "https:" + u
-        cleaned.append(u)
-        seen.add(u)
+        if not (u.startswith("http://") or u.startswith("https://")):
+            continue
+        if u not in seen:
+            cleaned.append(u)
+            seen.add(u)
     return cleaned
 
 
@@ -972,6 +975,12 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
         out["drive"] = drive_val
     if variant_val:
         out["variant"] = variant_val
+    if suburb_val and state_val:
+        out["location"] = f"{suburb_val} {state_val}"
+    elif state_val and not out.get("location"):
+        out["location"] = state_val
+    elif suburb_val and not out.get("location"):
+        out["location"] = suburb_val
 
     if debug:
         print(
@@ -986,6 +995,18 @@ def _parse_detail_html(html: str, debug: bool = False) -> Dict[str, Any]:
                 (state_val or "") or "",
                 (suburb_val or "") or "",
                 sale_method or "",
+            )
+        )
+        print(
+            "DEBUG pickles hydrate specs: odometer=%s trans=%s fuel=%s body=%s engine=%s drive=%s variant=%s"
+            % (
+                odometer_val if odometer_val is not None else "",
+                trans_val or "",
+                fuel_val or "",
+                body_val or "",
+                engine_val or "",
+                drive_val or "",
+                variant_val or "",
             )
         )
     return out
@@ -1112,6 +1133,8 @@ def search_pickles(
                 print(f"DEBUG pickles page fetch failed (page={page}): {exc}")
             break
 
+        pages_walked += 1
+
         try:
             page_rows, page_counters = parse_list(
                 html,
@@ -1125,7 +1148,6 @@ def search_pickles(
                 print(f"DEBUG pickles page parse stop (page={page}): {exc}")
             break
         counters.update(page_counters)
-        pages_walked += 1
 
         new_rows = 0
         for row in page_rows:

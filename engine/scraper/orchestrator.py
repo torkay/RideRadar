@@ -11,15 +11,63 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from collections import Counter
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from pathlib import Path
 
 from engine.runtime.vendor_status import mark_success, mark_error
 from engine.scraper import normalize as norm
 from engine.scraper.pipeline import save_normalized, save_many
+
+
+def _pickles_compute_buy_method(
+    *,
+    strict_prices: bool,
+    final_buy_method: Optional[str],
+    allow_enquire: bool,
+    include_unpriced: bool,
+) -> Optional[str]:
+    if strict_prices:
+        return "buy_now"
+    if (final_buy_method or "").lower() == "buy_now" and not (allow_enquire or include_unpriced):
+        return "buy_now"
+    return None
+
+
+def _compile_query_tokens(query: Optional[str], make: Optional[str]) -> Tuple[Optional[str], List[str]]:
+    if not query:
+        return None, []
+    tokens = re.findall(r"[a-z0-9]+", query.lower())
+    if not tokens:
+        return None, []
+    make_token = make.lower() if make else tokens[0]
+    other_tokens = [tok for tok in tokens if tok != make_token]
+    return make_token, other_tokens
+
+
+def _passes_query_filter(
+    make_token: Optional[str],
+    other_tokens: List[str],
+    row: Dict[str, Any],
+) -> bool:
+    if not make_token and not other_tokens:
+        return True
+    text_parts = [
+        str(row.get("title") or ""),
+        str(row.get("make_guess") or ""),
+        str(row.get("model_guess") or ""),
+        str(row.get("variant") or ""),
+    ]
+    text_blob = " ".join(text_parts).lower()
+    if make_token and make_token not in text_blob:
+        return False
+    if other_tokens:
+        if not any(tok in text_blob for tok in other_tokens):
+            return False
+    return True
 
 
 def _load_scraper(vendor: str) -> Tuple[Callable, Dict]:
@@ -165,6 +213,13 @@ def main(argv: List[str] | None = None) -> int:
                 else:
                     final_buy_method = "buy_now" if args.require_price else "any"
 
+            buy_method_for_search = _pickles_compute_buy_method(
+                strict_prices=args.strict_prices,
+                final_buy_method=final_buy_method,
+                allow_enquire=args.allow_enquire,
+                include_unpriced=args.include_unpriced,
+            )
+
             rows_raw, parse_stats, meta = pk.search_pickles(
                 make=args.make,
                 model=args.model,
@@ -175,7 +230,7 @@ def main(argv: List[str] | None = None) -> int:
                 limit=limit,
                 filters=(filt or None) if filt else None,
                 double_encode_filter=args.double_encode_filter,
-                buy_method=final_buy_method,
+                buy_method=buy_method_for_search,
                 hydrate=args.hydrate_details,
                 hydrate_concurrency=args.hydrate_concurrency,
                 debug=args.debug,
@@ -193,6 +248,7 @@ def main(argv: List[str] | None = None) -> int:
         min_year = args.min_year
         min_price = args.min_price
         max_price = args.max_price
+        make_token, other_tokens = _compile_query_tokens(args.query, args.make)
 
         for raw in rows_raw:
             url = raw.get("url")
@@ -240,8 +296,6 @@ def main(argv: List[str] | None = None) -> int:
                 continue
 
             price_required = args.strict_prices or args.require_price or (not args.require_price and not args.include_unpriced)
-            if args.strict_prices:
-                price_required = True
             if sale_method == "enquire" and args.allow_enquire and args.include_unpriced and not args.strict_prices:
                 price_required = False
 
@@ -271,10 +325,22 @@ def main(argv: List[str] | None = None) -> int:
                     print(f"DEBUG pickles drop[out_of_range]: url={url} price={price_val} year={year_val}")
                 continue
 
+            if (make_token or other_tokens) and not _passes_query_filter(make_token, other_tokens, raw):
+                drop_counters["dropped_off_query"] += 1
+                if args.debug:
+                    print(f"DEBUG pickles drop[off_query]: url={url}")
+                continue
+
             rows_filtered.append(raw)
 
         rows_raw = rows_filtered
         drop_counters["kept_after_filters"] = len(rows_raw)
+        drop_counters["sale_method_enquire"] = sum(
+            1 for r in rows_raw if (r.get("sale_method") or "").lower() == "enquire"
+        )
+        drop_counters["enquire_unpriced"] = sum(
+            1 for r in rows_raw if (r.get("sale_method") or "").lower() == "enquire" and not r.get("price")
+        )
         n_ok = 0
         n_err = 0
         normalized = []
@@ -308,6 +374,7 @@ def main(argv: List[str] | None = None) -> int:
             "dropped_missing_price",
             "dropped_enquire_unpriced",
             "dropped_out_of_range",
+            "dropped_off_query",
             "dropped_quality_gate",
             "dropped_parse_error",
             "dropped_normalize_error",
